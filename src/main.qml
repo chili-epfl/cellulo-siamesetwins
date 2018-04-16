@@ -24,14 +24,14 @@ ApplicationWindow {
     property int staticPlayer: -1
     property var players: [ null, null ]
     property var playerStates: [ "INIT", "INIT" ]
-    property var playerInitialPositions: [ Qt.vector3d(45.0, 55.0, 0.0), Qt.vector3d(345.0, 55.0, 0.0) ]
+    property var playerInitialPositions: [ Qt.vector2d(45.0, 55.0), Qt.vector2d(345.0, 55.0) ]
     property var playerCurrentPositions: [ playerInitialPositions[0], playerInitialPositions[1] ]
     property var playerLastPositions: [ playerInitialPositions[0], playerInitialPositions[1] ]
-    property var initialPoseDelta: playerInitialPositions[1].minus(playerInitialPositions[0])
-    property var currentPoseDelta: initialPoseDelta
+    property var lastPoseDelta: playerInitialPositions[1].minus(playerInitialPositions[0])
+    property var currentPoseDelta: lastPoseDelta
+    property real maximumVerticalDelta: 100.0
     property var ledColors: [ "#0000FF", "#00FF00" ]
     property real linearVelocity: 200.0
-    property real angularVelocity: 3.14159
 
     Column {
         id: robotLayout
@@ -88,9 +88,10 @@ ApplicationWindow {
                                 openLock = false;
                         }
 
-                        if (openLock) {
+                        if (playerStates[index] == "READY" && openLock) {
                             players[otherPlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, ledColors[otherPlayerIndex], 10);
                             playerStates[index] = "STATIC";
+                            console.log("Player " + index + " entered STATIC mode.");
                         }
                         // rosNode.publishLongTouch(robot.macAddr, key)
                     }
@@ -106,17 +107,19 @@ ApplicationWindow {
                         if (playerStates[index] == "STATIC") {
                             players[otherPlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[otherPlayerIndex], 255);
                             playerStates[index] == "READY";
+                            console.log("Player " + index + " entered READY mode.");
                         }
                         // rosNode.publishTouchEnd(robot.macAddr, key)
                     }
 
                     onTrackingGoalReached: {
                         console.log("Player " + index + ": tracking goal reached.");
-
+                        players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 255);
+                        
                         if (gameState == "INIT" && playerStates[index] == "INIT") {
                             console.log("Player " + index + " position initialized.");
-                            players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 255);
                             playerStates[index] = "READY";
+                            console.log("Player " + otherPlayerIndex + " entered READY mode.");
 
                             if (playerStates[otherPlayerIndex] == "READY") {
                                 players[0].clearTracking();
@@ -127,37 +130,48 @@ ApplicationWindow {
                         else if (gameState == "RUNNING") {
                             players[index].clearTracking();
 
-                            if (playerStates[index] == "FOLLOWING") {
-                                console.log("Player " + index + " exiting FOLLOWING mode.");
+                            if (playerStates[index] == "FOLLOWING" || playerStates[index] == "OUT") {
                                 playerLastPositions[index] = playerCurrentPositions[index];
                                 playerStates[index] = "READY";
+                                console.log("Player " + index + " entered READY mode.");
                             }
                         }
                     }
 
                     onPoseChanged: {
                         if (gameState == "RUNNING") {
-                            playerCurrentPositions[index] = Qt.vector3d(players[index].x, players[index].y, players[index].theta);
+                            playerCurrentPositions[index] = Qt.vector2d(players[index].x, players[index].y);
+                            currentPoseDelta = playerCurrentPositions[1].minus(playerCurrentPositions[0]);
 
-                            if (playerStates[index] == "READY" && playerStates[otherPlayerIndex] != "STATIC") {
-
-                                if (playerStates[otherPlayerIndex] == "FOLLOWING") {
-                                    var otherGoalPosition = null;
-                                    if (index == 0)
-                                        otherGoalPosition = playerCurrentPositions[index].plus(currentPoseDelta);
-                                    else
-                                        otherGoalPosition = playerCurrentPositions[index].minus(currentPoseDelta);
-
-                                    players[otherPlayerIndex].setGoalPose(otherGoalPosition.x, otherGoalPosition.y, otherGoalPosition.z, linearVelocity, angularVelocity);
-                                    playerLastPositions[index] = playerCurrentPositions[index];
-                                }
-                                else {
-                                    var poseDifference = playerCurrentPositions[index].minus(playerLastPositions[index]);
-                                    if (Math.sqrt(poseDifference.dotProduct(poseDifference)) > 20.0) {
-                                        console.log("Player " + otherPlayerIndex + " entered FOLLOWING mode.");
-                                        playerStates[otherPlayerIndex] = "FOLLOWING";
+                            if (playerStates[index] == "READY") {
+                                if (playerStates[otherPlayerIndex] == "STATIC") {
+                                    var verticalDelta = currentPoseDelta.y - lastPoseDelta.y;
+                                    if (Math.abs(verticalDelta) > maximumVerticalDelta) {
+                                        playerStates[index] = "OUT";
+                                        players[index].setGoalYCoordinate(playerCurrentPositions[otherPlayerIndex].y, linearVelocity);
+                                        players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FF0000", 10);
+                                        players[index].simpleVibrate(300, 300, 6.28, 10, 300);
+                                        console.log("Player " + index + " entered OUT mode.");
                                     }
                                 }
+                                else if (playerStates[otherPlayerIndex] == "FOLLOWING") {
+                                    var otherGoalPosition = null;
+                                    if (index == 0)
+                                        otherGoalPosition = playerCurrentPositions[index].plus(lastPoseDelta);
+                                    else
+                                        otherGoalPosition = playerCurrentPositions[index].minus(lastPoseDelta);
+
+                                    players[otherPlayerIndex].setGoalPosition(otherGoalPosition.x, otherGoalPosition.y, linearVelocity);
+                                }
+                                else {
+                                    var poseDifference = currentPoseDelta.minus(lastPoseDelta);
+                                    if (Math.sqrt(poseDifference.dotProduct(poseDifference)) > 20.0) {
+                                        playerStates[otherPlayerIndex] = "FOLLOWING";
+                                        console.log("Player " + otherPlayerIndex + " entered FOLLOWING mode.");
+                                    }
+                                }
+                                
+                                playerLastPositions[index] = playerCurrentPositions[index];
                             }
                         }
 
@@ -222,8 +236,8 @@ ApplicationWindow {
 
                     console.log("Initializing positions...");
                     gameState = "INIT";
-                    players[0].setGoalPose(playerInitialPositions[0].x, playerInitialPositions[0].y, playerInitialPositions[0].z, linearVelocity, angularVelocity);
-                    players[1].setGoalPose(playerInitialPositions[1].x, playerInitialPositions[1].y, playerInitialPositions[1].z, linearVelocity, angularVelocity);
+                    players[0].setGoalPosition(playerInitialPositions[0].x, playerInitialPositions[0].y, linearVelocity);
+                    players[1].setGoalPosition(playerInitialPositions[1].x, playerInitialPositions[1].y, linearVelocity);
                 }
             }
         }
