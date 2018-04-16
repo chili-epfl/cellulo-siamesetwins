@@ -22,8 +22,8 @@ ApplicationWindow {
 
     property string gameState: "IDLE"
     property int staticPlayer: -1
-    property var players: [ null, null ]
-    property var playerStates: [ "INIT", "INIT" ]
+    property var players: []
+    property var playerStates: []
     property var playerInitialPositions: [ Qt.vector2d(45.0, 55.0), Qt.vector2d(345.0, 55.0) ]
     property var playerCurrentPositions: [ playerInitialPositions[0], playerInitialPositions[1] ]
     property var playerLastPositions: [ playerInitialPositions[0], playerInitialPositions[1] ]
@@ -53,6 +53,8 @@ ApplicationWindow {
                     Label {
                         text: "Player " + (index + 1) + " robot: "
                         font.bold: true
+                        font.pointSize: 14
+                        color: ledColors[index]
                     }
                     MacAddrSelector {
                         id: macAddrSelector
@@ -76,6 +78,9 @@ ApplicationWindow {
                     onMacAddrChanged: QMLCache.write("Robot" + (index) + "MacAddr", macAddr)
 
                     onKidnappedChanged: {
+                        if (robot.kidnapped)
+                            players[index].setGoalPosition(playerCurrentPositions[index].x, playerCurrentPositions[index].y, linearVelocity);
+
                         // rosNode.publishKidnapped(robot.macAddr, robot.kidnapped)
                     }
 
@@ -226,7 +231,6 @@ ApplicationWindow {
             Button{
                 id: startButton
                 text: "Start Game"
-                enabled: gameState == "IDLE"
                 onClicked: {
                     if (players[0].connectionStatus != CelluloBluetoothEnums.ConnectionStatusConnected ||
                         players[1].connectionStatus != CelluloBluetoothEnums.ConnectionStatusConnected) {
@@ -236,8 +240,10 @@ ApplicationWindow {
 
                     console.log("Initializing positions...");
                     gameState = "INIT";
+                    playerStates = [ "INIT", "INIT" ];
                     players[0].setGoalPosition(playerInitialPositions[0].x, playerInitialPositions[0].y, linearVelocity);
                     players[1].setGoalPosition(playerInitialPositions[1].x, playerInitialPositions[1].y, linearVelocity);
+                    text = "Reset";
                 }
             }
         }
