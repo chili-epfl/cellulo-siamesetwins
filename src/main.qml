@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.1
 import QtQuick.Controls 1.4
 import QtQuick.Controls.Private 1.0
 import QtQuick.Controls.Styles 1.3
+import QtQuick.Dialogs 1.0
 
 import Cellulo 1.0
 import QMLCache 1.0
@@ -21,26 +22,164 @@ ApplicationWindow {
     title: "SiameseTwins"
 
     property string gameState: "IDLE"
-    property int staticPlayer: -1
+    property int playerCount: 2
+    property int maxPlayerCount: 4
     property var players: []
     property var playerStates: []
-    property var playerInitialPositions: [ Qt.vector2d(45.0, 55.0), Qt.vector2d(345.0, 55.0) ]
-    property var playerCurrentPositions: [ playerInitialPositions[0], playerInitialPositions[1] ]
-    property var playerLastPositions: [ playerInitialPositions[0], playerInitialPositions[1] ]
-    property var lastPoseDelta: playerInitialPositions[1].minus(playerInitialPositions[0])
-    property var currentPoseDelta: lastPoseDelta
+    property var ledColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
+    property var initialPositions: [
+        Qt.vector2d(45.0, 55.0),
+        Qt.vector2d(145.0, 55.0),
+        Qt.vector2d(245.0, 55.0),
+        Qt.vector2d(345.0, 55.0)
+    ]
+    property var lastPositions: []
+    property var currentPositions: []
+    property var lastPoseDeltas: []
+    property var currentPoseDeltas: []
+    property int mobilePlayerIndex: -1
+    property int leadingPlayerIndex: -1
     property real maximumVerticalDelta: 100.0
-    property var ledColors: [ "#0000FF", "#00FF00" ]
     property real linearVelocity: 200.0
 
+
+    property var gameTransitions: {
+        "IDLE": [
+            "INIT"
+        ],
+        "INIT": [
+            "RUNNING"
+        ],
+        "RUNNING": [
+            "INIT"
+        ]
+    }
+
+    property var playerTransitions: {
+        "INIT": [
+            "READY"
+        ],
+        "READY": [
+            "FOLLOWING", 
+            "LEADING", 
+            "STATIC", 
+            "MOVING", 
+            "INIT"
+        ],
+        "FOLLOWING": [
+            "READY",
+            "INIT"
+        ],
+        "LEADING": [
+            "READY", 
+            "INIT"
+        ],
+        "STATIC": [
+            "READY", 
+            "INIT"
+        ],
+        "MOVING": [
+            "OUT", 
+            "READY", 
+            "INIT"
+        ],
+        "OUT": [
+            "READY", 
+            "INIT"
+        ]
+    }
+
+    function contains(list, element) {
+        for (var i = 0; i < list.length; ++i)
+            if (list[i] === element)
+                return true;
+
+        return false;
+    }
+
+    function findPlayersInState(state) {
+        var found = [];
+        for (var i = 0; i < playerCount; ++i)
+            if (playerStates[i] == state)
+                found.push(i);
+
+        return found;
+    }
+
     function changeGameState(newState) {
+        if (gameState == newState)
+            return;
+
+        console.assert(contains(gameTransitions[gameState], newState));
+
         console.log("Game state changed from " + gameState + " to " + newState);
+
+        if (newState == "INIT") {
+            for (var i = 0; i < playerCount; ++i)
+                changePlayerState(i, "INIT");
+        }
+
         gameState = newState;
     }
 
     function changePlayerState(index, newState) {
+        if (playerStates[index] == newState)
+            return;
+
+        console.assert(contains(playerTransitions[playerStates[index]], newState));
+
         console.log("Player " + index + " state changed from " + playerStates[index] + " to " + newState);
-        playerStates[index] = newState;
+
+        if (playerStates[index] == "INIT") {
+            var initializing = findPlayersInState("INIT");
+            if (initializing.length == 1)
+                changeGameState("RUNNING");
+        }
+        else if (playerStates[index] == "READY") {
+            if (newState == "STATIC") {
+                var staticPlayerCount = 0;
+                for (var i = 0; i < playerCount; ++i) {
+                    if (playerStates[i] == "STATIC")
+                        ++staticPlayerCount;
+                }
+
+                if (staticPlayerCount == (playerCount - 1)) {
+                    for (var i = 0; i < playerCount; ++i) {
+                        if (playerStates[i] != "STATIC")
+                            changePlayerState(i, "MOVING");
+                            // changeMobilePlayer(i);
+                    }
+                }
+            }
+        }
+        else if (playerStates[index] == "FOLLOWING") {
+            if (newState == "READY") {
+                var followers = findPlayersInState("FOLLOWING");
+                if (followers.length == 0) {
+                    var leader = findPlayersInState("LEADING");
+                    changePlayerState(leader[0], "READY");
+                }
+            }
+        }
+        else if (playerStates[index] == "STATIC") {
+            if (newState == "READY") {
+                if (mobilePlayerIndex > 0) {
+                    if (playerStates[mobilePlayerIndex] != "OUT") {
+                        players[mobilePlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[mobilePlayerIndex], 255);
+
+                        var mover = findPlayersInState("MOVING");
+                        changePlayerState(mover[0], "READY");
+                    }
+                }
+            }
+        }
+        else if (playerStates[index] == "MOVING") {
+            players[index].blinkPeriod = 0;
+        }
+
+        var newPlayerStates = playerStates;
+        newPlayerStates[index] = newState;
+        playerStates = newPlayerStates;
     }
 
     Column {
@@ -50,7 +189,7 @@ ApplicationWindow {
         Repeater {
             id: robotRepeater
             visible: true
-            model: 2
+            model: playerCount
 
             property var addresses: QMLCache.read("addresses").split(",")
 
@@ -60,8 +199,33 @@ ApplicationWindow {
 
                 Row {
                     spacing: 5
+                    Button {
+                        text: "Change color..."
+                        onClicked: {
+                            colorDialog.color = ledColors[index];
+                            colorDialog.visible = true;
+                        }
+
+                        enabled: gameState == "IDLE";
+                    }
+                    ColorDialog {
+                        id: colorDialog
+                        title: "Please choose a LED color"
+                        color: ledColors[index]
+
+                        function updateColor(newColor) {
+                            var newLedColors = ledColors;
+                            newLedColors[index] = newColor;
+                            ledColors = newLedColors;
+                        }
+
+                        onAccepted: updateColor(color)
+                        onCurrentColorChanged: updateColor(currentColor)
+                        visible: false
+                    }
                     Label {
-                        text: "Player " + (index + 1) + " robot: "
+                        id: playerLabel
+                        text: "Player " + (index + 1)
                         font.bold: true
                         font.pointSize: 14
                         color: ledColors[index]
@@ -80,110 +244,164 @@ ApplicationWindow {
 
                 CelluloRobot {
                     id: robot
-                    property int otherPlayerIndex: index == 0 ? 1 : 0;
-                    property string name: "player" + (index)
-                    property var keyStates: [ 0, 0, 0, 0, 0, 0 ]
+                    property string type: "cellulo"
+                    property int number: index
+                    property real blinkPeriod: 0
+                    property var keyStates: [0, 0, 0, 0, 0, 0]
 
-                    macAddr: QMLCache.read("Robot" + (index) + "MacAddr")
+                    function areAllKeysHeld() {
+                        var held = true;
+                        for (var i = 0; i < keyStates.length; ++i) {
+                            if (keyStates[i] != 2)
+                                held = false;
+                        }
+
+                        return held;
+                    }
+
                     onMacAddrChanged: QMLCache.write("Robot" + (index) + "MacAddr", macAddr)
 
                     onKidnappedChanged: {
-                        if (robot.kidnapped)
-                            players[index].setGoalPosition(playerCurrentPositions[index].x, playerCurrentPositions[index].y, linearVelocity);
-
                         // rosNode.publishKidnapped(robot.macAddr, robot.kidnapped)
+                        if (gameState == "RUNNING") {
+                            if (robot.kidnapped == true) {
+                                if (playerStates[index] == "READY")
+                                    changePlayerState(index, "STATIC");
+                                else if (playerStates[index] == "STATIC")
+                                    changePlayerState(index, "READY");
+                            }
+                        }
                     }
 
                     onLongTouch: {
-                        keyStates[key] = 2;
+                        // if (gameState == "RUNNING") {
+                        //     console.log("Player " + index + " longtouch " + key);
+                        //     keyStates[key] = 2;
 
-                        var openLock = true;
-                        for (var i = 0; i < 6; ++i) {
-                            if (players[index].keyStates[i] != 2)
-                                openLock = false;
-                        }
+                        //     if (playerStates[index] == "READY" && areAllKeysHeld()) {
+                        //         changePlayerState(index, "STATIC");
 
-                        if (playerStates[index] == "READY" && openLock) {
-                            players[otherPlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, ledColors[otherPlayerIndex], 10);
-                            changePlayerState(index, "STATIC");
-                        }
+                        //         var staticPlayerCount = 0;
+                        //         for (var i = 0; i < playerCount; ++i) {
+                        //             if (playerStates[i] == "STATIC")
+                        //                 ++staticPlayerCount;
+                        //         }
+
+                        //         if (staticPlayerCount == (playerCount - 1)) {
+                        //             for (var i = 0; i < playerCount; ++i) {
+                        //                 if (playerStates[i] != "STATIC")
+                        //                     changeMobilePlayer(i);
+                        //             }
+                        //         }
+                        //     }
+                        // }
                         // rosNode.publishLongTouch(robot.macAddr, key)
                     }
 
                     onTouchBegan: {
-                        keyStates[key] = 1;
+                        // if (gameState == "RUNNING") {
+                        //     console.log("Player " + index + " touch " + key);
+                        //     keyStates[key] = 1;
+                        // }
                         // rosNode.publishTouchStart(robot.macAddr, key)
                     }
 
                     onTouchReleased:  {
-                        keyStates[key] = 0;
+                        // if (gameState == "RUNNING") {
+                        //     console.log("Player " + index + " released " + key);
+                        //     keyStates[key] = 0;
 
-                        if (playerStates[index] == "STATIC") {
-                            players[otherPlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[otherPlayerIndex], 255);
-                            changePlayerState(index, "READY");
-                        }
+                        //     if (playerStates[index] == "STATIC") {
+                        //         if (mobilePlayerIndex > 0) {
+                        //             if (playerStates[mobilePlayerIndex] != "OUT")
+                        //                 players[mobilePlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[mobilePlayerIndex], 255);
+
+                        //             changeMobilePlayer(-1);
+                        //         }
+
+                        //         changePlayerState(index, "READY");
+                        //     }
+                        // }
                         // rosNode.publishTouchEnd(robot.macAddr, key)
                     }
 
                     onTrackingGoalReached: {
-                        console.log("Player " + index + ": tracking goal reached.");
                         players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 255);
-                        
-                        if (gameState == "INIT" && playerStates[index] == "INIT") {
+                        players[index].clearTracking();
+
+                        if (playerStates[index] == "INIT") {
                             console.log("Player " + index + " position initialized.");
                             changePlayerState(index, "READY");
-
-                            if (playerStates[otherPlayerIndex] == "READY") {
-                                players[0].clearTracking();
-                                players[1].clearTracking();
-                                changeGameState("RUNNING");
-                            }
                         }
-                        else if (gameState == "RUNNING") {
-                            players[index].clearTracking();
+                        else {
+                            lastPositions[index] = currentPositions[index];
 
                             if (playerStates[index] == "FOLLOWING" || playerStates[index] == "OUT") {
-                                playerLastPositions[index] = playerCurrentPositions[index];
                                 changePlayerState(index, "READY");
                             }
                         }
                     }
 
                     onPoseChanged: {
+                        if (gameState != "IDLE") {
+                            currentPositions[index] = Qt.vector2d(players[index].x, players[index].y);
+                            currentPoseDeltas[index] = currentPositions[index].minus(currentPositions[0]);
+                        }
+
                         if (gameState == "RUNNING") {
-                            playerCurrentPositions[index] = Qt.vector2d(players[index].x, players[index].y);
-                            currentPoseDelta = playerCurrentPositions[1].minus(playerCurrentPositions[0]);
+                            if (playerStates[index] == "INIT") {
+                                players[index].setGoalPosition(initialPositions[index].x, initialPositions[index].y);
+                            }
+                            else if (playerStates[index] == "READY") {
+                                var positionDelta = currentPositions[index].minus(lastPositions[index]);
+                                var absoluteDelta = Math.sqrt(positionDelta.dotProduct(positionDelta));
 
-                            if (playerStates[index] == "READY") {
-                                if (playerStates[otherPlayerIndex] == "STATIC") {
-                                    var verticalDelta = currentPoseDelta.y - lastPoseDelta.y;
-                                    if (Math.abs(verticalDelta) > maximumVerticalDelta) {
-                                        players[index].setGoalYCoordinate(playerCurrentPositions[otherPlayerIndex].y, linearVelocity);
-                                        players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FF0000", 10);
-                                        players[index].simpleVibrate(300, 300, 6.28, 200, 300);
-                                        changePlayerState(index, "OUT");
+                                // assume leader position after moving far enough
+                                if (absoluteDelta > 20.0) {
+                                    changePlayerState(index, "LEADING");
+                                    for (var i = 0; i < playerCount; ++i) {
+                                        if (i != index)
+                                            changePlayerState(i, "FOLLOWING");
                                     }
                                 }
-                                else if (playerStates[otherPlayerIndex] == "FOLLOWING") {
-                                    var otherGoalPosition = null;
-                                    if (index == 0)
-                                        otherGoalPosition = playerCurrentPositions[index].plus(lastPoseDelta);
-                                    else
-                                        otherGoalPosition = playerCurrentPositions[index].minus(lastPoseDelta);
-
-                                    players[otherPlayerIndex].setGoalPosition(otherGoalPosition.x, otherGoalPosition.y, linearVelocity);
-                                }
-                                else {
-                                    var poseDifference = currentPoseDelta.minus(lastPoseDelta);
-                                    if (Math.sqrt(poseDifference.dotProduct(poseDifference)) > 20.0) {
-                                        changePlayerState(otherPlayerIndex, "FOLLOWING");
-                                    }
-                                }
-                                
-                                playerLastPositions[index] = playerCurrentPositions[index];
+                            }
+                            else if (playerStates[index] == "LEADING") {
+                                lastPositions[index] = currentPositions[index];
+                            }
+                            else if (playerStates[index] == "FOLLOWING") {
+                                var goalPosition = currentPositions[leadingPlayerIndex].minus(lastPoseDeltas[leadingPlayerIndex]).plus(lastPoseDeltas[index]);
+                                players[index].setGoalPosition(goalPosition.x, goalPosition.y, linearVelocity);
                             }
                             else if (playerStates[index] == "STATIC") {
-                                players[index].setGoalPosition(playerLastPositions[index].x, playerLastPositions[index].y, linearVelocity);
+                                players[index].setGoalPosition(lastPositions[index].x, lastPositions[index].y, linearVelocity);
+                            }
+                            else if (playerStates[index] == "MOVING") {
+                                // limit free movement
+                                var verticalDelta = Math.abs(currentPositions[index].y - lastPositions[index].y);
+
+                                if (verticalDelta > maximumVerticalDelta) {
+                                    players[index].simpleVibrate(300, 300, 6.28, 200, 300);
+                                    players[index].setGoalPosition(lastPositions[index].x, lastPositions[index].y, linearVelocity);
+
+                                    changePlayerState(index, "OUT");
+                                }
+                                else {
+                                    var blinkPeriod = 40;
+                                    if (verticalDelta > 0.9 * maximumVerticalDelta)
+                                        blinkPeriod = 5;
+                                    else if (verticalDelta > 0.7 * maximumVerticalDelta)
+                                        blinkPeriod = 10;
+                                    else if (verticalDelta > 0.5 * maximumVerticalDelta)
+                                        blinkPeriod = 20;
+
+                                    if (blinkPeriod != players[index].blinkPeriod) {
+                                        players[index].blinkPeriod = blinkPeriod;
+                                        players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, ledColors[index], blinkPeriod);
+                                    }
+
+                                    for (var i = 0; i < playerCount; ++i)
+                                        lastPoseDeltas[i] = currentPositions[i].minus(currentPositions[0]);
+                                }
                             }
                         }
 
@@ -199,10 +417,8 @@ ApplicationWindow {
             onItemAdded: {
                 for (var i = 0; i < item.children.length; ++i) {
                     var child = item.children[i];
-                    if (child.name == "player0")
-                        players[0] = item.children[i]
-                    else if (child.name == "player1")
-                        players[1] = item.children[i]
+                    if (child.type == "cellulo")
+                        players[child.number] = child;
                 }
             }
         }
@@ -233,24 +449,69 @@ ApplicationWindow {
 
         Row {
             padding: 8
-            spacing: 5
+            spacing: 8
+
+            Button {
+                id: addPlayerButton
+                text: "Add player"
+                enabled: (gameState == "IDLE" && playerCount < maxPlayerCount)
+                onClicked: playerCount += 1
+            }
+
+            Button {
+                id: removePlayerButton
+                text: "Remove player"
+                enabled: (gameState == "IDLE" && playerCount > 2)
+                onClicked: playerCount -= 1
+            }
 
             Button{
                 id: startButton
                 text: "Start Game"
                 onClicked: {
-                    if (players[0].connectionStatus != CelluloBluetoothEnums.ConnectionStatusConnected ||
-                        players[1].connectionStatus != CelluloBluetoothEnums.ConnectionStatusConnected) {
+                    var allPlayersConnected = true;
+                    for (var i = 0; i < playerCount; ++i) {
+                        if (players[i].connectionStatus != CelluloBluetoothEnums.ConnectionStatusConnected)
+                            allPlayersConnected = false;
+                    }
+
+                    if (!allPlayersConnected) {
                         toast.show("Cannot start game before both robots are connected!");
                         return;
                     }
 
-                    console.log("Initializing positions...");
+                    lastPositions = [
+                        initialPositions[0],
+                        initialPositions[1],
+                        initialPositions[3],
+                        initialPositions[4]
+                    ];
+                    currentPositions = [
+                        initialPositions[0],
+                        initialPositions[1],
+                        initialPositions[3],
+                        initialPositions[4]
+                    ];
+                    lastPoseDeltas = [
+                        Qt.vector2d(0.0, 0.0),
+                        initialPositions[1].minus(initialPositions[0]),
+                        initialPositions[2].minus(initialPositions[0]),
+                        initialPositions[3].minus(initialPositions[0])
+                    ];
+                    currentPoseDeltas = [
+                        Qt.vector2d(0.0, 0.0),
+                        initialPositions[1].minus(initialPositions[0]),
+                        initialPositions[2].minus(initialPositions[0]),
+                        initialPositions[3].minus(initialPositions[0])
+                    ];
+
                     changeGameState("INIT");
-                    changePlayerState(0, "INIT");
-                    changePlayerState(1, "INIT");
-                    players[0].setGoalPosition(playerInitialPositions[0].x, playerInitialPositions[0].y, linearVelocity);
-                    players[1].setGoalPosition(playerInitialPositions[1].x, playerInitialPositions[1].y, linearVelocity);
+
+                    for (var i = 0; i < playerCount; ++i) {
+                        changePlayerState(i, "INIT");
+                        players[i].setGoalPosition(initialPositions[i].x, initialPositions[i].y, linearVelocity);
+                    }
+
                     text = "Reset";
                 }
             }
