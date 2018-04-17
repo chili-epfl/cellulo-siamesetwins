@@ -33,6 +33,16 @@ ApplicationWindow {
     property var ledColors: [ "#0000FF", "#00FF00" ]
     property real linearVelocity: 200.0
 
+    function changeGameState(newState) {
+        console.log("Game state changed from " + gameState + " to " + newState);
+        gameState = newState;
+    }
+
+    function changePlayerState(index, newState) {
+        console.log("Player " + index + " state changed from " + playerStates[index] + " to " + newState);
+        playerStates[index] = newState;
+    }
+
     Column {
         id: robotLayout
         spacing: 8
@@ -95,8 +105,7 @@ ApplicationWindow {
 
                         if (playerStates[index] == "READY" && openLock) {
                             players[otherPlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, ledColors[otherPlayerIndex], 10);
-                            playerStates[index] = "STATIC";
-                            console.log("Player " + index + " entered STATIC mode.");
+                            changePlayerState(index, "STATIC");
                         }
                         // rosNode.publishLongTouch(robot.macAddr, key)
                     }
@@ -111,8 +120,7 @@ ApplicationWindow {
 
                         if (playerStates[index] == "STATIC") {
                             players[otherPlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[otherPlayerIndex], 255);
-                            playerStates[index] == "READY";
-                            console.log("Player " + index + " entered READY mode.");
+                            changePlayerState(index, "READY");
                         }
                         // rosNode.publishTouchEnd(robot.macAddr, key)
                     }
@@ -123,13 +131,12 @@ ApplicationWindow {
                         
                         if (gameState == "INIT" && playerStates[index] == "INIT") {
                             console.log("Player " + index + " position initialized.");
-                            playerStates[index] = "READY";
-                            console.log("Player " + otherPlayerIndex + " entered READY mode.");
+                            changePlayerState(index, "READY");
 
                             if (playerStates[otherPlayerIndex] == "READY") {
                                 players[0].clearTracking();
                                 players[1].clearTracking();
-                                gameState = "RUNNING";
+                                changeGameState("RUNNING");
                             }
                         }
                         else if (gameState == "RUNNING") {
@@ -137,8 +144,7 @@ ApplicationWindow {
 
                             if (playerStates[index] == "FOLLOWING" || playerStates[index] == "OUT") {
                                 playerLastPositions[index] = playerCurrentPositions[index];
-                                playerStates[index] = "READY";
-                                console.log("Player " + index + " entered READY mode.");
+                                changePlayerState(index, "READY");
                             }
                         }
                     }
@@ -152,11 +158,10 @@ ApplicationWindow {
                                 if (playerStates[otherPlayerIndex] == "STATIC") {
                                     var verticalDelta = currentPoseDelta.y - lastPoseDelta.y;
                                     if (Math.abs(verticalDelta) > maximumVerticalDelta) {
-                                        playerStates[index] = "OUT";
                                         players[index].setGoalYCoordinate(playerCurrentPositions[otherPlayerIndex].y, linearVelocity);
                                         players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FF0000", 10);
-                                        players[index].simpleVibrate(300, 300, 6.28, 10, 300);
-                                        console.log("Player " + index + " entered OUT mode.");
+                                        players[index].simpleVibrate(300, 300, 6.28, 200, 300);
+                                        changePlayerState(index, "OUT");
                                     }
                                 }
                                 else if (playerStates[otherPlayerIndex] == "FOLLOWING") {
@@ -171,12 +176,14 @@ ApplicationWindow {
                                 else {
                                     var poseDifference = currentPoseDelta.minus(lastPoseDelta);
                                     if (Math.sqrt(poseDifference.dotProduct(poseDifference)) > 20.0) {
-                                        playerStates[otherPlayerIndex] = "FOLLOWING";
-                                        console.log("Player " + otherPlayerIndex + " entered FOLLOWING mode.");
+                                        changePlayerState(otherPlayerIndex, "FOLLOWING");
                                     }
                                 }
                                 
                                 playerLastPositions[index] = playerCurrentPositions[index];
+                            }
+                            else if (playerStates[index] == "STATIC") {
+                                players[index].setGoalPosition(playerLastPositions[index].x, playerLastPositions[index].y, linearVelocity);
                             }
                         }
 
@@ -239,8 +246,9 @@ ApplicationWindow {
                     }
 
                     console.log("Initializing positions...");
-                    gameState = "INIT";
-                    playerStates = [ "INIT", "INIT" ];
+                    changeGameState("INIT");
+                    changePlayerState(0, "INIT");
+                    changePlayerState(1, "INIT");
                     players[0].setGoalPosition(playerInitialPositions[0].x, playerInitialPositions[0].y, linearVelocity);
                     players[1].setGoalPosition(playerInitialPositions[1].x, playerInitialPositions[1].y, linearVelocity);
                     text = "Reset";
