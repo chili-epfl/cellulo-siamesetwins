@@ -21,6 +21,10 @@ ApplicationWindow {
 
     title: "SiameseTwins"
 
+    property real mapPhysicalWidth: 297
+    property real mapPhysicalHeight: 420
+    property real robotPhysicalWidth: 75
+
     property string gameState: "IDLE"
     property int playerCount: 2
     property int maxPlayerCount: 4
@@ -28,8 +32,8 @@ ApplicationWindow {
     property var playerStates: ["INIT", "INIT", "INIT", "INIT"]
     property var ledColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
     property var initialPositions: [
-        Qt.vector2d(45.0, 55.0),
-        Qt.vector2d(145.0, 55.0),
+        Qt.vector2d(65.0, 55.0),
+        Qt.vector2d(165.0, 55.0),
         Qt.vector2d(245.0, 55.0),
         Qt.vector2d(345.0, 55.0)
     ]
@@ -40,7 +44,7 @@ ApplicationWindow {
     property int mobilePlayerIndex: -1
     property int leadingPlayerIndex: -1
     property real maximumVerticalDelta: 100.0
-    property real linearVelocity: 200.0
+    property real linearVelocity: 50.0
 
 
     property var gameTransitions: {
@@ -111,7 +115,6 @@ ApplicationWindow {
             return;
 
         console.assert(contains(gameTransitions[gameState], newState));
-
         console.log("Game state changed from " + gameState + " to " + newState);
 
         if (newState == "INIT") {
@@ -127,7 +130,6 @@ ApplicationWindow {
             return;
 
         console.assert(contains(playerTransitions[playerStates[index]], newState));
-
         console.log("Player " + index + " state changed from " + playerStates[index] + " to " + newState);
 
         if (playerStates[index] == "INIT") {
@@ -151,7 +153,7 @@ ApplicationWindow {
                 }
             }
             else if (newState == "MOVING") {
-                players[index].blinkPeriod = 80;
+                players[index].blinkPeriod = 40;
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, ledColors[index], players[index].blinkPeriod);
             }
         }
@@ -190,6 +192,15 @@ ApplicationWindow {
         var newPlayerStates = playerStates;
         newPlayerStates[index] = newState;
         playerStates = newPlayerStates;
+    }
+
+    function respondToZoneChange(robot, zone, value) {
+        if (value == 1) {
+            console.log("Player " + robot.number + " entered zone " + zone.name);
+        }
+        else {
+            console.log("Player " + robot.number + " left zone " + zone.name);
+        }
     }
 
     Column {
@@ -335,6 +346,8 @@ ApplicationWindow {
                         // rosNode.publishTouchEnd(robot.macAddr, key)
                     }
 
+                    onZoneValueChanged: respondToZoneChange(robot, zone, value)
+
                     onTrackingGoalReached: {
                         players[index].clearTracking();
 
@@ -373,14 +386,19 @@ ApplicationWindow {
                             else if (playerStates[index] == "READY") {
                                 var staticPlayers = findPlayersInState("STATIC");
                                 if (staticPlayers.length > 0) {
-                                    players[index].setGoalPosition(lastPositions[index].x, lastPositions[index].y, linearVelocity);
+                                    if (staticPlayers.length == playerCount - 1) {
+                                        changePlayerState(index, "MOVING");
+                                    }
+                                    else {
+                                        players[index].setGoalPosition(lastPositions[index].x, lastPositions[index].y, linearVelocity);
+                                    }
                                 }
                                 else {
                                     var positionDelta = currentPositions[index].minus(lastPositions[index]);
                                     var absoluteDelta = Math.sqrt(positionDelta.dotProduct(positionDelta));
 
                                     // assume leader position after moving far enough
-                                    if (absoluteDelta > 20.0) {
+                                    if (absoluteDelta > 30.0) {
                                         changePlayerState(index, "LEADING");
                                     }
                                 }
@@ -524,6 +542,10 @@ ApplicationWindow {
                         initialPositions[3].minus(initialPositions[0])
                     ];
 
+                    var zones = CelluloZoneJsonHandler.loadZonesQML(":/assets/zones-a4-2players.json");
+                    zoneEngine.addNewZones(zones);
+                    console.log("Loaded " + zones.length + " zones");
+
                     changeGameState("INIT");
 
                     for (var i = 0; i < playerCount; ++i) {
@@ -537,9 +559,11 @@ ApplicationWindow {
         }
     }
 
-    ToastManager{ id: toast }    
+    ToastManager {
+        id: toast
+    }    
 
-    CelluloBluetoothScanner{
+    CelluloBluetoothScanner {
         id: scanner
         onRobotDiscovered: {
             var newAddresses = robotRepeater.addresses;
@@ -551,5 +575,9 @@ ApplicationWindow {
             robotRepeater.addresses = newAddresses;
             QMLCache.write("addresses", robotRepeater.addresses.join(','));
         }
+    }
+
+    CelluloZoneEngine {
+        id: zoneEngine
     }
 }
