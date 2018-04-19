@@ -1,4 +1,6 @@
 {
+  "physicalWidth": 420.0,
+  "physicalHeight": 297.0,
   "linearVelocity": 200.0,
   "maxPlayerCount": 2,
   "maxMoveDistance": 150.0,

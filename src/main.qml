@@ -1,10 +1,8 @@
 import QtQuick 2.7
-import QtQuick.Window 2.1
-import QtQuick.Layouts 1.1
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Private 1.0
-import QtQuick.Controls.Styles 1.3
-import QtQuick.Dialogs 1.0
+import QtQuick.Window 2.2
+import QtQuick.Controls 2.3
+import QtQml.Models 2.2
+import QtQuick.Dialogs 1.3
 
 import Cellulo 1.0
 import QMLCache 1.0
@@ -18,8 +16,8 @@ ApplicationWindow {
     visible: true
 
     property bool mobile: Qt.platform.os === "android"
-    width: mobile ? Screen.width : 840
-    height: mobile ? Screen.height : 580
+    width: mobile ? Screen.width : 1080
+    height: mobile ? Screen.height : 720
 
     title: "SiameseTwins"
 
@@ -93,6 +91,35 @@ ApplicationWindow {
         ]
     }
 
+    ToastManager {
+        id: toast
+    }    
+
+    FileIo {
+        id: fileIo
+        visible: false
+    }
+
+    CelluloZoneEngine {
+        id: zoneEngine
+
+        active: gameState == "RUNNING"
+    }
+
+    CelluloBluetoothScanner {
+        id: scanner
+        onRobotDiscovered: {
+            var newAddresses = robotRepeater.addresses;
+            if(newAddresses.indexOf(macAddr) < 0){
+                toast.show(macAddr + " discovered.");
+                newAddresses.push(macAddr);
+                newAddresses.sort();
+            }
+            robotRepeater.addresses = newAddresses;
+            QMLCache.write("addresses", robotRepeater.addresses.join(','));
+        }
+    }
+
     function contains(list, element) {
         for (var i = 0; i < list.length; ++i)
             if (list[i] === element)
@@ -101,24 +128,14 @@ ApplicationWindow {
         return false;
     }
 
-
-    CelluloZoneEngine {
-        id: zoneEngine
-
-        active: gameState == "RUNNING"
-    }
-
-    FileIo {
-        id: fileIo
-        visible: false
-    }
-
     function loadMap(name) {
         console.log("Loading map " + name + "...");
 
         fileIo.path = ":/assets/" + name + "-config.json";
         var config = JSON.parse(fileIo.readAll());
 
+        mapPhysicalWidth = config["physicalWidth"];
+        mapPhysicalHeight = config["physicalHeight"];
         linearVelocity = config["linearVelocity"];
         maxPlayerCount = config["maxPlayerCount"];
         maxMoveDistance = config["maxMoveDistance"];
@@ -134,6 +151,10 @@ ApplicationWindow {
         zoneEngine.clearZones();
         var zones = CelluloZoneJsonHandler.loadZonesQML(":/assets/" + name + "-zones.json");
         zoneEngine.addNewZones(zones);
+
+        // for (var i = 0; i < zones.length; ++i) {
+        //     zones[i].createPaintedItem(zonesPaintedItem, "#80FF0000", mapPhysicalWidth, mapPhysicalHeight);
+        // }
     }
 
     function findPlayersInState(state) {
@@ -167,12 +188,16 @@ ApplicationWindow {
         console.assert(contains(playerTransitions[playerStates[index]], newState));
         console.log("Player " + index + " state changed from " + playerStates[index] + " to " + newState);
 
-        if (playerStates[index] == "IDLE") {
-            players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FFFFFF", 10);
-        }
-        else if (playerStates[index] == "INIT") {
+        switch (playerStates[index]) {
+            case "IDLE":
+            if (newState == "INIT") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FFFFFF", 10);
+            }
+            break;
+        
+            case "INIT":
             if (newState == "IDLE") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
@@ -182,10 +207,11 @@ ApplicationWindow {
                     changeGameState("RUNNING");
                 }
             }
-        }
-        else if (playerStates[index] == "READY") {
+            break;
+        
+            case "READY":
             if (newState == "IDLE") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "STATIC") {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectWaiting, ledColors[index], 0);
@@ -203,10 +229,11 @@ ApplicationWindow {
                 players[index].blinkPeriod = 40;
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, ledColors[index], players[index].blinkPeriod);
             }
-        }
-        else if (playerStates[index] == "STATIC") {
+            break;
+        
+            case "STATIC":
             if (newState == "IDLE") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "READY") {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
@@ -216,10 +243,11 @@ ApplicationWindow {
                     changePlayerState(mover[0], "READY");
                 }
             }
-        }
-        else if (playerStates[index] == "MOVING") {
+            break;
+            
+            case "MOVING":
             if (newState == "IDLE") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "OUT") {
                 players[index].blinkPeriod = 5;
@@ -236,15 +264,17 @@ ApplicationWindow {
                 for (var i = 0; i < playerCount; ++i)
                     lastPoseDeltas[i] = currentPositions[i].minus(currentPositions[0]);
             }
-        }
-        else if (playerStates[index] == "OUT") {
+            break;
+        
+            case "OUT":
             if (newState == "IDLE") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "READY") {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
                 players[index].blinkPeriod = 0;
             }
+            break;
         }
 
         var newPlayerStates = playerStates;
@@ -482,9 +512,9 @@ ApplicationWindow {
                     ListElement { text: "Easymaze (A3, 2 players)"; name: "a3-easymaze"; }
                     ListElement { text: "Colors (A4, 2 players)"; name: "a4-colors"; }
                 }
-                width: 200
+                textRole: "text"
+                width: 400
                 onCurrentIndexChanged: loadMap(mapListItems.get(currentIndex).name)
-                Component.onCompleted: currentIndex = 0
             }
 
             Button {
@@ -551,21 +581,21 @@ ApplicationWindow {
         }
     }
 
-    ToastManager {
-        id: toast
-    }    
+    // Page {
+    //     id: zonesPaintedItem
+    //     anchors.top: robotLayout.bottom
+    //     anchors.left: parent.left
+    //     anchors.right: parent.right
+    //     anchors.bottom: parent.bottom
+    //     visible: false
 
-    CelluloBluetoothScanner {
-        id: scanner
-        onRobotDiscovered: {
-            var newAddresses = robotRepeater.addresses;
-            if(newAddresses.indexOf(macAddr) < 0){
-                toast.show(macAddr + " discovered.");
-                newAddresses.push(macAddr);
-                newAddresses.sort();
-            }
-            robotRepeater.addresses = newAddresses;
-            QMLCache.write("addresses", robotRepeater.addresses.join(','));
-        }
+    //     // Rectangle {
+    //     //     anchors.fill: parent
+    //     //     color: "#99ff99"
+    //     // }
+    // }
+
+    Component.onCompleted: {
+        mapListComboBox.currentIndex = 0;
     }
 }
