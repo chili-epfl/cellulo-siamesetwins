@@ -1,0 +1,8 @@
+{
+  "maxPlayerCount": 2,
+  "initialPositions": [
+    [ 65.0, 55.0],
+    [165.0, 55.0]
+  ],
+  "linearVelocity": 200.0
+}
