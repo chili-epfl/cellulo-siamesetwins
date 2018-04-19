@@ -25,9 +25,11 @@ ApplicationWindow {
     property real mapPhysicalHeight: 420
     property real robotPhysicalWidth: 75
 
+    property int maxPlayerCount: mapListItems.get(mapListComboBox.currentIndex).maxPlayerCount
+    property string zonefile: mapListItems.get(mapListComboBox.currentIndex).zonefile
+
     property string gameState: "IDLE"
     property int playerCount: 2
-    property int maxPlayerCount: 4
     property var players: []
     property var playerStates: ["INIT", "INIT", "INIT", "INIT"]
     property var ledColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
@@ -44,7 +46,7 @@ ApplicationWindow {
     property int mobilePlayerIndex: -1
     property int leadingPlayerIndex: -1
     property real maximumVerticalDelta: 100.0
-    property real linearVelocity: 50.0
+    property real linearVelocity: 200.0
 
 
     property var gameTransitions: {
@@ -220,30 +222,6 @@ ApplicationWindow {
 
                 Row {
                     spacing: 5
-                    Button {
-                        text: "Change color..."
-                        onClicked: {
-                            colorDialog.color = ledColors[index];
-                            colorDialog.visible = true;
-                        }
-
-                        enabled: gameState == "IDLE";
-                    }
-                    ColorDialog {
-                        id: colorDialog
-                        title: "Please choose a LED color"
-                        color: ledColors[index]
-
-                        function updateColor(newColor) {
-                            var newLedColors = ledColors;
-                            newLedColors[index] = newColor;
-                            ledColors = newLedColors;
-                        }
-
-                        onAccepted: updateColor(color)
-                        onCurrentColorChanged: updateColor(currentColor)
-                        visible: false
-                    }
                     Label {
                         id: playerLabel
                         text: "Player " + (index + 1)
@@ -268,17 +246,6 @@ ApplicationWindow {
                     property string type: "cellulo"
                     property int number: index
                     property real blinkPeriod: 0
-                    property var keyStates: [0, 0, 0, 0, 0, 0]
-
-                    function areAllKeysHeld() {
-                        var held = true;
-                        for (var i = 0; i < keyStates.length; ++i) {
-                            if (keyStates[i] != 2)
-                                held = false;
-                        }
-
-                        return held;
-                    }
 
                     onMacAddrChanged: QMLCache.write("Robot" + (index) + "MacAddr", macAddr)
 
@@ -295,54 +262,14 @@ ApplicationWindow {
                     }
 
                     onLongTouch: {
-                        // if (gameState == "RUNNING") {
-                        //     console.log("Player " + index + " longtouch " + key);
-                        //     keyStates[key] = 2;
-
-                        //     if (playerStates[index] == "READY" && areAllKeysHeld()) {
-                        //         changePlayerState(index, "STATIC");
-
-                        //         var staticPlayerCount = 0;
-                        //         for (var i = 0; i < playerCount; ++i) {
-                        //             if (playerStates[i] == "STATIC")
-                        //                 ++staticPlayerCount;
-                        //         }
-
-                        //         if (staticPlayerCount == (playerCount - 1)) {
-                        //             for (var i = 0; i < playerCount; ++i) {
-                        //                 if (playerStates[i] != "STATIC")
-                        //                     changeMobilePlayer(i);
-                        //             }
-                        //         }
-                        //     }
-                        // }
                         // rosNode.publishLongTouch(robot.macAddr, key)
                     }
 
                     onTouchBegan: {
-                        // if (gameState == "RUNNING") {
-                        //     console.log("Player " + index + " touch " + key);
-                        //     keyStates[key] = 1;
-                        // }
                         // rosNode.publishTouchStart(robot.macAddr, key)
                     }
 
                     onTouchReleased:  {
-                        // if (gameState == "RUNNING") {
-                        //     console.log("Player " + index + " released " + key);
-                        //     keyStates[key] = 0;
-
-                        //     if (playerStates[index] == "STATIC") {
-                        //         if (mobilePlayerIndex > 0) {
-                        //             if (playerStates[mobilePlayerIndex] != "OUT")
-                        //                 players[mobilePlayerIndex].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[mobilePlayerIndex], 255);
-
-                        //             changeMobilePlayer(-1);
-                        //         }
-
-                        //         changePlayerState(index, "READY");
-                        //     }
-                        // }
                         // rosNode.publishTouchEnd(robot.macAddr, key)
                     }
 
@@ -487,6 +414,31 @@ ApplicationWindow {
         Row {
             padding: 8
             spacing: 8
+
+            ComboBox {
+                id: mapListComboBox
+                currentIndex: 0
+                model: ListModel {
+                    id: mapListItems
+                    ListElement { text: "Numbers (A3, 2-3 players)"; zonefile: "zones-a3-numbers.json"; maxPlayerCount: 3 }
+                    ListElement { text: "Easymaze (A3, 2 players)"; zonefile: "zones-a3-easymaze.json"; maxPlayerCount: 2 }
+                    ListElement { text: "Colors (A4, 2 players)"; zonefile: "zones-a4-colors.json"; maxPlayerCount: 2 }
+                }
+                width: 200
+                onCurrentIndexChanged: {
+                    root.zonefile = mapListItems.get(currentIndex).zonefile;
+                    root.maxPlayerCount = mapListItems.get(currentIndex).maxPlayerCount;
+                    if (playerCount > maxPlayerCount) {
+                        playerCount = maxPlayerCount;
+                    }
+
+                    console.log("Zonefile: " + root.zonefile + ", maxPlayerCount: " + root.maxPlayerCount);
+                }
+
+                Component.onCompleted: {
+                    currentIndex = 0;
+                }
+            }
 
             Button {
                 id: addPlayerButton
