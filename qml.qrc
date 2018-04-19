@@ -1,6 +1,11 @@
 <RCC>
     <qresource prefix="/">
         <file>src/main.qml</file>
-        <file>assets/zones-a4-2players.json</file>
+        <file>assets/a3-easymaze-config.json</file>
+        <file>assets/a3-easymaze-zones.json</file>
+        <file>assets/a3-numbers-config.json</file>
+        <file>assets/a3-numbers-zones.json</file>
+        <file>assets/a4-colors-config.json</file>
+        <file>assets/a4-colors-zones.json</file>
     </qresource>
 </RCC>

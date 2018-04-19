@@ -11,6 +11,8 @@ import QMLCache 1.0
 import QMLBluetoothExtras 1.0
 import QMLRos 1.0
 
+import ch.epfl.chili.fileio 1.0
+
 ApplicationWindow {
     id: root
     visible: true
@@ -25,27 +27,21 @@ ApplicationWindow {
     property real mapPhysicalHeight: 420
     property real robotPhysicalWidth: 75
 
-    property int maxPlayerCount: mapListItems.get(mapListComboBox.currentIndex).maxPlayerCount
-    property string zonefile: mapListItems.get(mapListComboBox.currentIndex).zonefile
+    property int maxPlayerCount: 2
 
     property string gameState: "IDLE"
     property int playerCount: 2
     property var players: []
     property var playerStates: ["INIT", "INIT", "INIT", "INIT"]
     property var ledColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
-    property var initialPositions: [
-        Qt.vector2d(65.0, 55.0),
-        Qt.vector2d(165.0, 55.0),
-        Qt.vector2d(245.0, 55.0),
-        Qt.vector2d(345.0, 55.0)
-    ]
+    property var initialPositions: []
     property var lastPositions: []
     property var currentPositions: []
     property var lastPoseDeltas: []
     property var currentPoseDeltas: []
     property int mobilePlayerIndex: -1
     property int leadingPlayerIndex: -1
-    property real maximumVerticalDelta: 100.0
+    property real maximumVerticalDelta: 75.0
     property real linearVelocity: 200.0
 
 
@@ -101,6 +97,41 @@ ApplicationWindow {
                 return true;
 
         return false;
+    }
+
+
+    CelluloZoneEngine {
+        id: zoneEngine
+
+        active: gameState == "RUNNING"
+    }
+
+    FileIo {
+        id: fileIo
+        visible: false
+    }
+
+    function loadMap(name) {
+        console.log("Loading map " + name + "...");
+
+        fileIo.path = ":/assets/" + name + "-config.json";
+        var config = JSON.parse(fileIo.readAll());
+
+        maxPlayerCount = config["maxPlayerCount"];
+        var positions = config["initialPositions"];
+        initialPositions = [];
+        for (var i = 0; i < positions.length; ++i) {
+            initialPositions.push(Qt.vector2d(positions[i][0], positions[i][1]));
+        }
+        linearVelocity = config["linearVelocity"];
+
+        if (playerCount > maxPlayerCount) playerCount = maxPlayerCount;
+
+        zoneEngine.clearZones();
+        var zones = CelluloZoneJsonHandler.loadZonesQML(":/assets/" + name + "-zones.json");
+        zoneEngine.addNewZones(zones);
+
+        zones = zoneEngine.getZonesList();
     }
 
     function findPlayersInState(state) {
@@ -420,24 +451,13 @@ ApplicationWindow {
                 currentIndex: 0
                 model: ListModel {
                     id: mapListItems
-                    ListElement { text: "Numbers (A3, 2-3 players)"; zonefile: "zones-a3-numbers.json"; maxPlayerCount: 3 }
-                    ListElement { text: "Easymaze (A3, 2 players)"; zonefile: "zones-a3-easymaze.json"; maxPlayerCount: 2 }
-                    ListElement { text: "Colors (A4, 2 players)"; zonefile: "zones-a4-colors.json"; maxPlayerCount: 2 }
+                    ListElement { text: "Numbers (A3, 2-3 players)"; name: "a3-numbers"; }
+                    ListElement { text: "Easymaze (A3, 2 players)"; name: "a3-easymaze"; }
+                    ListElement { text: "Colors (A4, 2 players)"; name: "a4-colors"; }
                 }
                 width: 200
-                onCurrentIndexChanged: {
-                    root.zonefile = mapListItems.get(currentIndex).zonefile;
-                    root.maxPlayerCount = mapListItems.get(currentIndex).maxPlayerCount;
-                    if (playerCount > maxPlayerCount) {
-                        playerCount = maxPlayerCount;
-                    }
-
-                    console.log("Zonefile: " + root.zonefile + ", maxPlayerCount: " + root.maxPlayerCount);
-                }
-
-                Component.onCompleted: {
-                    currentIndex = 0;
-                }
+                onCurrentIndexChanged: loadMap(mapListItems.get(currentIndex).name)
+                Component.onCompleted: currentIndex = 0
             }
 
             Button {
@@ -469,39 +489,18 @@ ApplicationWindow {
                         return;
                     }
 
-                    lastPositions = [
-                        initialPositions[0],
-                        initialPositions[1],
-                        initialPositions[3],
-                        initialPositions[4]
-                    ];
-                    currentPositions = [
-                        initialPositions[0],
-                        initialPositions[1],
-                        initialPositions[3],
-                        initialPositions[4]
-                    ];
-                    lastPoseDeltas = [
-                        Qt.vector2d(0.0, 0.0),
-                        initialPositions[1].minus(initialPositions[0]),
-                        initialPositions[2].minus(initialPositions[0]),
-                        initialPositions[3].minus(initialPositions[0])
-                    ];
-                    currentPoseDeltas = [
-                        Qt.vector2d(0.0, 0.0),
-                        initialPositions[1].minus(initialPositions[0]),
-                        initialPositions[2].minus(initialPositions[0]),
-                        initialPositions[3].minus(initialPositions[0])
-                    ];
-
-                    var zones = CelluloZoneJsonHandler.loadZonesQML(":/assets/zones-a4-2players.json");
-                    zoneEngine.addNewZones(zones);
-                    console.log("Loaded " + zones.length + " zones");
-
                     changeGameState("INIT");
 
+                    lastPositions = [];
+                    lastPoseDeltas = [];
                     for (var i = 0; i < playerCount; ++i) {
                         changePlayerState(i, "INIT");
+
+                        lastPositions.push(initialPositions[i]);
+                        currentPositions.push(initialPositions[i]);
+                        lastPoseDeltas.push(initialPositions[i].minus(initialPositions[0]));
+                        currentPoseDeltas.push(lastPoseDeltas[i]);
+
                         players[i].setGoalPosition(initialPositions[i].x, initialPositions[i].y, linearVelocity);
                     }
 
@@ -527,9 +526,5 @@ ApplicationWindow {
             robotRepeater.addresses = newAddresses;
             QMLCache.write("addresses", robotRepeater.addresses.join(','));
         }
-    }
-
-    CelluloZoneEngine {
-        id: zoneEngine
     }
 }
