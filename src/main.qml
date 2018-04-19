@@ -27,12 +27,14 @@ ApplicationWindow {
     property real mapPhysicalHeight: 420
     property real robotPhysicalWidth: 75
 
+    property real linearVelocity: 200.0
     property int maxPlayerCount: 2
+    property real maxMoveDistance: 75.0
 
     property string gameState: "IDLE"
     property int playerCount: 2
     property var players: []
-    property var playerStates: ["INIT", "INIT", "INIT", "INIT"]
+    property var playerStates: ["IDLE", "IDLE", "IDLE", "IDLE"]
     property var ledColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
     property var initialPositions: []
     property var lastPositions: []
@@ -41,9 +43,6 @@ ApplicationWindow {
     property var currentPoseDeltas: []
     property int mobilePlayerIndex: -1
     property int leadingPlayerIndex: -1
-    property real maximumVerticalDelta: 75.0
-    property real linearVelocity: 200.0
-
 
     property var gameTransitions: {
         "IDLE": [
@@ -53,11 +52,14 @@ ApplicationWindow {
             "RUNNING"
         ],
         "RUNNING": [
-            "INIT"
+            "IDLE"
         ]
     }
 
     property var playerTransitions: {
+        "IDLE": [
+            "INIT"
+        ],
         "INIT": [
             "READY"
         ],
@@ -66,28 +68,28 @@ ApplicationWindow {
             "LEADING", 
             "STATIC", 
             "MOVING", 
-            "INIT"
+            "IDLE"
         ],
         "FOLLOWING": [
             "READY",
-            "INIT"
+            "IDLE"
         ],
         "LEADING": [
             "READY", 
-            "INIT"
+            "IDLE"
         ],
         "STATIC": [
             "READY", 
-            "INIT"
+            "IDLE"
         ],
         "MOVING": [
             "OUT", 
             "READY", 
-            "INIT"
+            "IDLE"
         ],
         "OUT": [
             "READY", 
-            "INIT"
+            "IDLE"
         ]
     }
 
@@ -117,21 +119,21 @@ ApplicationWindow {
         fileIo.path = ":/assets/" + name + "-config.json";
         var config = JSON.parse(fileIo.readAll());
 
+        linearVelocity = config["linearVelocity"];
         maxPlayerCount = config["maxPlayerCount"];
+        maxMoveDistance = config["maxMoveDistance"];
+
         var positions = config["initialPositions"];
         initialPositions = [];
         for (var i = 0; i < positions.length; ++i) {
             initialPositions.push(Qt.vector2d(positions[i][0], positions[i][1]));
         }
-        linearVelocity = config["linearVelocity"];
 
         if (playerCount > maxPlayerCount) playerCount = maxPlayerCount;
 
         zoneEngine.clearZones();
         var zones = CelluloZoneJsonHandler.loadZonesQML(":/assets/" + name + "-zones.json");
         zoneEngine.addNewZones(zones);
-
-        zones = zoneEngine.getZonesList();
     }
 
     function findPlayersInState(state) {
@@ -165,15 +167,27 @@ ApplicationWindow {
         console.assert(contains(playerTransitions[playerStates[index]], newState));
         console.log("Player " + index + " state changed from " + playerStates[index] + " to " + newState);
 
-        if (playerStates[index] == "INIT") {
-            players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 255);
+        if (playerStates[index] == "IDLE") {
+            players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FFFFFF", 10);
+        }
+        else if (playerStates[index] == "INIT") {
+            if (newState == "IDLE") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+            }
+            else {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
 
-            var initializing = findPlayersInState("INIT");
-            if (initializing.length == 1)
-                changeGameState("RUNNING");
+                var initializing = findPlayersInState("INIT");
+                if (initializing.length == 1) {
+                    changeGameState("RUNNING");
+                }
+            }
         }
         else if (playerStates[index] == "READY") {
-            if (newState == "STATIC") {
+            if (newState == "IDLE") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+            }
+            else if (newState == "STATIC") {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectWaiting, ledColors[index], 0);
 
                 var staticPlayers = findPlayersInState("STATIC");
@@ -191,8 +205,11 @@ ApplicationWindow {
             }
         }
         else if (playerStates[index] == "STATIC") {
-            if (newState == "READY") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 255);
+            if (newState == "IDLE") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+            }
+            else if (newState == "READY") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
 
                 var mover = findPlayersInState("MOVING");
                 if (mover.length > 0) {
@@ -201,7 +218,10 @@ ApplicationWindow {
             }
         }
         else if (playerStates[index] == "MOVING") {
-            if (newState == "OUT") {
+            if (newState == "IDLE") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+            }
+            else if (newState == "OUT") {
                 players[index].blinkPeriod = 5;
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FF0000", players[index].blinkPeriod);
                 players[index].simpleVibrate(300, 300, 6.28, 200, 300);
@@ -218,8 +238,13 @@ ApplicationWindow {
             }
         }
         else if (playerStates[index] == "OUT") {
-            players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
-            players[index].blinkPeriod = 0;
+            if (newState == "IDLE") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FFFFFF", 0);
+            }
+            else if (newState == "READY") {
+                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
+                players[index].blinkPeriod = 0;
+            }
         }
 
         var newPlayerStates = playerStates;
@@ -378,18 +403,19 @@ ApplicationWindow {
                             }
                             else if (playerStates[index] == "MOVING") {
                                 // limit free movement
-                                var verticalDelta = Math.abs(currentPositions[index].y - lastPositions[index].y);
+                                var positionDelta = currentPositions[index].minus(lastPositions[index]);
+                                var absoluteDelta = Math.sqrt(positionDelta.dotProduct(positionDelta));
 
-                                if (verticalDelta > maximumVerticalDelta) {
+                                if (absoluteDelta > maxMoveDistance) {
                                     changePlayerState(index, "OUT");
                                 }
                                 else {
                                     var blinkPeriod = players[index].blinkPeriod;
-                                    if (verticalDelta > 0.9 * maximumVerticalDelta)
+                                    if (absoluteDelta > 0.9 * maxMoveDistance)
                                         blinkPeriod = 10;
-                                    else if (verticalDelta > 0.7 * maximumVerticalDelta)
+                                    else if (absoluteDelta > 0.7 * maxMoveDistance)
                                         blinkPeriod = 20;
-                                    else if (verticalDelta > 0.5 * maximumVerticalDelta)
+                                    else if (absoluteDelta > 0.5 * maxMoveDistance)
                                         blinkPeriod = 40;
 
                                     if (blinkPeriod != players[index].blinkPeriod) {
@@ -449,6 +475,7 @@ ApplicationWindow {
             ComboBox {
                 id: mapListComboBox
                 currentIndex: 0
+                enabled: gameState == "IDLE"
                 model: ListModel {
                     id: mapListItems
                     ListElement { text: "Numbers (A3, 2-3 players)"; name: "a3-numbers"; }
@@ -478,33 +505,47 @@ ApplicationWindow {
                 id: startButton
                 text: "Start Game"
                 onClicked: {
-                    var allPlayersConnected = true;
-                    for (var i = 0; i < playerCount; ++i) {
-                        if (players[i].connectionStatus != CelluloBluetoothEnums.ConnectionStatusConnected)
-                            allPlayersConnected = false;
+                    if (gameState == "IDLE") {
+                        var allPlayersConnected = true;
+                        for (var i = 0; i < playerCount; ++i) {
+                            if (players[i].connectionStatus != CelluloBluetoothEnums.ConnectionStatusConnected)
+                                allPlayersConnected = false;
+                        }
+
+                        if (!allPlayersConnected) {
+                            toast.show("Cannot start game before both robots are connected!");
+                            return;
+                        }
+
+                        changeGameState("INIT");
+
+                        lastPositions = [];
+                        lastPoseDeltas = [];
+                        for (var i = 0; i < playerCount; ++i) {
+                            changePlayerState(i, "INIT");
+
+                            lastPositions.push(initialPositions[i]);
+                            currentPositions.push(initialPositions[i]);
+                            lastPoseDeltas.push(initialPositions[i].minus(initialPositions[0]));
+                            currentPoseDeltas.push(lastPoseDeltas[i]);
+
+                            players[i].setGoalPosition(initialPositions[i].x, initialPositions[i].y, linearVelocity);
+
+                            zoneEngine.addNewClient(players[i]);
+                        }
+
+                        text = "Stop Game";
                     }
+                    else {
+                        for (var i = 0; i < playerCount; ++i) {
+                            players[i].clearTracking();
+                            changePlayerState(i, "IDLE");
+                        }
 
-                    if (!allPlayersConnected) {
-                        toast.show("Cannot start game before both robots are connected!");
-                        return;
+                        gameState = "IDLE";
+
+                        text = "Start Game";
                     }
-
-                    changeGameState("INIT");
-
-                    lastPositions = [];
-                    lastPoseDeltas = [];
-                    for (var i = 0; i < playerCount; ++i) {
-                        changePlayerState(i, "INIT");
-
-                        lastPositions.push(initialPositions[i]);
-                        currentPositions.push(initialPositions[i]);
-                        lastPoseDeltas.push(initialPositions[i].minus(initialPositions[0]));
-                        currentPoseDeltas.push(lastPoseDeltas[i]);
-
-                        players[i].setGoalPosition(initialPositions[i].x, initialPositions[i].y, linearVelocity);
-                    }
-
-                    text = "Reset";
                 }
             }
         }

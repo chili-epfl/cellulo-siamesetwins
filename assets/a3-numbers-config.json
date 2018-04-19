@@ -1,9 +1,10 @@
 {
+  "linearVelocity": 200.0,
   "maxPlayerCount": 3,
+  "maxMoveDistance": 170.0,
   "initialPositions": [
-    [ 65.0, 55.0],
-    [165.0, 55.0],
-    [265.0, 55.0]
-  ],
-  "linearVelocity": 200.0
+    [ 75.0, 72.0],
+    [210.0, 72.0],
+    [345.0, 72.0]
+  ]
 }
