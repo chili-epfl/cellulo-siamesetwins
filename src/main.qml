@@ -641,8 +641,13 @@ ApplicationWindow {
         id: mainMenu
     }
 
+    Numbers {
+        id: numbers
+    }
+
     GameSettings {
         id: gameSettings
+        game: numbers
     }
 
     RobotSettings {
@@ -682,15 +687,16 @@ ApplicationWindow {
                 id: startItem
                 text: qsTr("Start Game")
                 width: parent.width
-                enabled: false
                 onClicked: {
-                    stackView.push(game)
-                    game.start()
+                    numbers.players = robotSettings.robots
+                    stackView.push(numbers)
+                    numbers.start()
                     drawer.close()
                     activityOn = true
-                    game.drawZones(game.alpha)
+                    // game.drawZones(game.alpha)
                 }
             }
+
             ItemDelegate {
                 text: qsTr("Game Settings")
                 width: parent.width

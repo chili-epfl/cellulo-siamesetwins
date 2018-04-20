@@ -16,6 +16,24 @@ Page {
     property int robotCount: 1
     property var robots: []
 
+    function updateRobotList() {
+        robots = []
+        for (var i = 0; i < robotRepeater.count; ++i) {
+            var item = robotRepeater.itemAt(i)
+            for (var j = 0; j < item.children.length; ++j) {
+                var child = item.children[j]
+                if (child.type == "cellulo" && child.connectionStatus == CelluloBluetoothEnums.ConnectionStatusConnected) {
+                    child.number = robots.length
+                    robots.push(child)
+                }
+            }
+        }
+    }
+
+    ToastManager {
+        id: toast
+    }
+
     CelluloBluetoothScanner {
         id: scanner
         onRobotDiscovered: {
@@ -48,6 +66,17 @@ Page {
                 CelluloRobot {
                     id: robot
                     property string type: "cellulo"
+                    property string state: "IDLE"
+                    property int number
+                    property color ledColor
+                    property int blinkPeriod
+                    property var lastPosition
+                    property var currentPosition
+                    property var lastPoseDelta
+                    property var currentPoseDelta
+                    property var targetZone
+                    property var currentZone
+                    onConnectionStatusChanged: updateRobotList()
                 }
 
                 Row {
@@ -70,16 +99,6 @@ Page {
                     }
                 }
             }
-
-            onItemAdded: {
-                for (var i = 0; i < item.children.length; ++i) {
-                    var child = item.children[i];
-                    if (child.type == "cellulo")
-                        robots.push(child);
-                }
-            }
-
-            onItemRemoved: robots.pop()
         }
 
         Row {

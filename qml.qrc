@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>src/main.qml</file>
+        <file>src/pages/Numbers.qml</file>
         <file>src/pages/MainMenu.qml</file>
         <file>src/pages/GameSettings.qml</file>
         <file>src/pages/RobotSettings.qml</file>
@@ -10,6 +11,5 @@
         <file>assets/a3-numbers-zones.json</file>
         <file>assets/a4-colors-config.json</file>
         <file>assets/a4-colors-zones.json</file>
-        <file>assets/6-green.svg</file>
     </qresource>
 </RCC>

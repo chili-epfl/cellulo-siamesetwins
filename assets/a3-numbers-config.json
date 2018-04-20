@@ -2,8 +2,10 @@
   "physicalWidth": 420.0,
   "physicalHeight": 297.0,
   "linearVelocity": 200.0,
-  "maxPlayerCount": 3,
+  "minPlayers": 2,
+  "maxPlayers": 3,
   "maxMoveDistance": 170.0,
+  "leadPoseDelta": 30.0,
   "initialPositions": [
     [ 75.0, 72.0],
     [210.0, 72.0],
