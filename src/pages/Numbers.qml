@@ -90,49 +90,31 @@ Page {
     }
 
     function chooseNewTargetZones() {
-        // for (var i = 0; i < players.length; ++i) {
-        //     var neighbors = map.data["neighborNumbers"][players[i].currentZone-1];
-        //     players[i].targetZone = neighbors[randomInt(0, neighbors.length)];
-        //     applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-        // }
+        for (var i = 0; i < players.length; ++i) {
+            var oldTargetZone = players[i].targetZone;
+            var neighbors = map.data["neighborNumbers"][oldTargetZone-1];
+            players[i].targetZone = neighbors[randomInt(0, neighbors.length)];
+            
+            console.log("Player " + i + " changed target zone from " + oldTargetZone + " to " + players[i].targetZone);
+
+            applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor);
+        }
     }
 
-    function contains(list, element) {
+    function find(list, element) {
         for (var i = 0; i < list.length; ++i)
             if (list[i] === element)
-                return true;
+                return i
 
-        return false;
+        return -1;
     }
 
     function applyEffectToLeds(player, ledCount, effect, color) {
-        console.log("Player " + player.number + " chose number " + ledCount);
         for (var i = 0; i < ledCount; ++i) {
             player.setVisualEffect(effect, color, i);
         }
         for (var i = ledCount; i < 6; ++i) {
             player.setVisualEffect(effect, "#000000", i);
-        }
-    }
-
-    function respondToZoneChange(player, zone, value) {
-        if (value == 1) {
-            console.log("Player " + player.number + " entered zone " + zone.name);
-            player.currentZone = map.data["zoneNumbers"][zone.name];
-
-            var allPlayersInTargetZone = true;
-            for (var i = 0; i < players.length; ++i) {
-                if (player.currentZone != player.targetZone)
-                    allPlayersInTargetZone = false;
-            }
-
-            if (allPlayersInTargetZone) {
-                chooseNewTargetZones();
-            }
-        }
-        else {
-            currentZones[player.number] = null;
-            console.log("Player " + player.number + " left zone " + zone.name);
         }
     }
 
@@ -145,11 +127,24 @@ Page {
         return found;
     }
 
+    function checkZones() {
+        var allPlayersInTargetZone = true;
+        for (var i = 0; i < players.length; ++i) {
+            if (find(players[i].currentZones, players[i].targetZone) == -1){
+                allPlayersInTargetZone = false;
+            }
+        }
+
+        if (allPlayersInTargetZone) {
+            chooseNewTargetZones();
+        }
+    }
+
     function changeGameState(newState) {
         if (gameState == newState)
             return;
 
-        console.assert(contains(gameTransitions[gameState], newState));
+        console.assert(find(gameTransitions[gameState], newState) != -1);
         console.log("Game state changed from " + gameState + " to " + newState);
 
         if (newState == "INIT") {
@@ -166,8 +161,8 @@ Page {
         if (player.state == newState)
             return;
 
-        console.assert(contains(playerTransitions[player.state], newState));
         console.log("Player " + player.number + " state changed from " + player.state + " to " + newState);
+        console.assert(find(playerTransitions[player.state], newState) != -1);
 
         switch (player.state) {
             case "IDLE":
@@ -205,9 +200,11 @@ Page {
             if (newState == "IDLE") {
                 player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
-            else {
-                // applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
+            else if (newState == "READY") {
+                checkZones()
+
+                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
+                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
 
                 var initializing = findPlayersInState("INIT");
                 if (initializing.length == 1) {
@@ -237,14 +234,26 @@ Page {
                 player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, player.blinkPeriod);
             }
             break;
+
+            case "FOLLOWING":
+            if (newState == "READY") {
+                var followers = findPlayersInState("FOLLOWING");
+                if (followers.length == 1) {
+                    var leader = findPlayersInState("LEADING");
+                    console.assert(leader.length == 1);
+                    changePlayerState(leader[0], "READY");
+                }
+            }
         
             case "STATIC":
             if (newState == "IDLE") {
                 player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "READY") {
-                // applyEffectToLeds(player, targetZones[index], CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
+                checkZones()
+
+                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
+                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
 
                 var mover = findPlayersInState("MOVING");
                 if (mover.length > 0) {
@@ -263,9 +272,11 @@ Page {
                 player.simpleVibrate(300, 300, 6.28, 200, 300);
                 player.setGoalPosition(player.lastPosition.x, player.lastPosition.y, config.linearVelocity);
             }
-            else {
-                // applyEffectToLeds(player, targetZones[index], CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
+            else if (newState == "READY") {
+                checkZones()
+
+                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
+                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
                 player.blinkPeriod = 0;
 
                 // modify pose
@@ -280,8 +291,10 @@ Page {
                 player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "READY") {
-                // applyEffectToLeds(player, targetZones[index], CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
+                checkZones()
+
+                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
+                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
                 player.blinkPeriod = 0;
             }
             break;
@@ -292,23 +305,27 @@ Page {
 
     function zoneValueChanged(player) {
         return function(zone, value) {
+            var zoneNumber = map.data["zoneNumbers"][zone.name]
+
             if (value == 1) {
                 console.log("Player " + player.number + " entered zone " + zone.name);
-                player.currentZone = map.data["zoneNumbers"][zone.name];
 
-                var allPlayersInTargetZone = true;
-                for (var i = 0; i < players.length; ++i) {
-                    if (players[i].currentZone != players[i].targetZone)
-                        allPlayersInTargetZone = false;
+                if (find(player.currentZones, zoneNumber) == -1) {
+                    player.currentZones.push(zoneNumber);
                 }
 
-                if (allPlayersInTargetZone) {
-                    chooseNewTargetZones();
-                }
+                console.log("Player " + player.number + " current zones: " + JSON.stringify(player.currentZones));
             }
             else {
-                player.currentZone = null;
                 console.log("Player " + player.number + " left zone " + zone.name);
+
+                var newCurrentZones = []
+                for (var i = 0; i < player.currentZones.length; ++i) {
+                    if (player.currentZones[i] != zoneNumber) {
+                        newCurrentZones.push(player.currentZones[i])
+                    }
+                }
+                player.currentZones = newCurrentZones;
             }
         }
     }
@@ -333,19 +350,12 @@ Page {
             if (player.state == "INIT") {
                 console.log("Player " + player.number + " position initialized.");
                 changePlayerState(player, "READY");
-                chooseNewTargetZones();
             }
             else {
                 player.lastPosition = player.currentPosition;
 
                 if (player.state == "FOLLOWING") {
                     changePlayerState(player, "READY");
-                    var followers = findPlayersInState("FOLLOWING");
-                    if (followers.length == 0) {
-                        var leader = findPlayersInState("LEADING");
-                        console.assert(leader.length == 1);
-                        changePlayerState(leader, "READY");
-                    }
                 }
                 else if (player.state == "OUT") {
                     changePlayerState(player, "READY");
@@ -363,6 +373,18 @@ Page {
 
             if (gameState == "RUNNING") {
                 if (player.state == "READY") {
+                    var allPlayersReady = true;
+                    for (var i = 0; i < players.length; ++i) {
+                        if (players[i].state != "READY") {
+                            allPlayersReady = false;
+                            break;
+                        }
+                    }
+
+                    if (allPlayersReady) {
+                        checkZones();
+                    }
+
                     var staticPlayers = findPlayersInState("STATIC");
                     if (staticPlayers.length > 0) {
                         if (staticPlayers.length == players.length - 1) {
@@ -447,8 +469,9 @@ Page {
             players[i].kidnappedChanged.connect(kidnappedChanged(players[i]))
             players[i].trackingGoalReached.connect(trackingGoalReached(players[i]))
             players[i].poseChanged.connect(poseChanged(players[i]))
-
             players[i].ledColor = ledColors[i]
+            players[i].targetZone = 6 - i;
+            players[i].currentZones = []
 
             changePlayerState(players[i], "INIT")
 

@@ -75,7 +75,7 @@ Page {
                     property var lastPoseDelta
                     property var currentPoseDelta
                     property var targetZone
-                    property var currentZone
+                    property var currentZones
                     onConnectionStatusChanged: updateRobotList()
                 }
 
