@@ -21,18 +21,21 @@ ApplicationWindow {
 
     title: "SiameseTwins"
 
-    property real mapPhysicalWidth: 297
-    property real mapPhysicalHeight: 420
-    property real robotPhysicalWidth: 75
+    // will be loaded from config file
+    property real mapPhysicalWidth;
+    property real mapPhysicalHeight;
+    property real linearVelocity;
+    property int maxPlayerCount;
+    property real maxMoveDistance;
+    property var gameData;
 
-    property real linearVelocity: 200.0
-    property int maxPlayerCount: 2
-    property real maxMoveDistance: 75.0
-
+    // shared game state
     property string gameState: "IDLE"
     property int playerCount: 2
     property var players: []
     property var playerStates: ["IDLE", "IDLE", "IDLE", "IDLE"]
+    property var currentZones: [6, 5, 4]
+    property var targetZones: []
     property var ledColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
     property var initialPositions: []
     property var lastPositions: []
@@ -120,12 +123,57 @@ ApplicationWindow {
         }
     }
 
+    function randomInt(min, max) {
+      min = Math.ceil(min);
+      max = Math.floor(max);
+      return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    function chooseNewTargetZones() {
+        for (var i = 0; i < playerCount; ++i) {
+            var neighbors = gameData["neighborNumbers"][currentZones[i]-1];
+            targetZones[i] = neighbors[randomInt(0, neighbors.length)];
+            applyEffectToLeds(players[i], targetZones[i], CelluloBluetoothEnums.VisualEffectConstSingle, ledColors[i]);
+        }
+    }
+
     function contains(list, element) {
         for (var i = 0; i < list.length; ++i)
             if (list[i] === element)
                 return true;
 
         return false;
+    }
+
+    function applyEffectToLeds(player, ledCount, effect, color) {
+        console.log("Player " + player.number + " chose number " + ledCount);
+        for (var i = 0; i < ledCount; ++i) {
+            player.setVisualEffect(effect, color, i);
+        }
+        for (var i = ledCount; i < 6; ++i) {
+            player.setVisualEffect(effect, "#000000", i);
+        }
+    }
+
+    function respondToZoneChange(robot, zone, value) {
+        if (value == 1) {
+            console.log("Player " + robot.number + " entered zone " + zone.name);
+            currentZones[robot.number] = gameData["zoneNumbers"][zone.name];
+
+            var allPlayersInTargetZone = true;
+            for (var i = 0; i < playerCount; ++i) {
+                if (currentZones[i] != targetZones[i])
+                    allPlayersInTargetZone = false;
+            }
+
+            if (allPlayersInTargetZone) {
+                chooseNewTargetZones();
+            }
+        }
+        else {
+            currentZones[robot.number] = null;
+            console.log("Player " + robot.number + " left zone " + zone.name);
+        }
     }
 
     function loadMap(name) {
@@ -139,11 +187,13 @@ ApplicationWindow {
         linearVelocity = config["linearVelocity"];
         maxPlayerCount = config["maxPlayerCount"];
         maxMoveDistance = config["maxMoveDistance"];
+        gameData = config["data"];
 
         var positions = config["initialPositions"];
         initialPositions = [];
         for (var i = 0; i < positions.length; ++i) {
             initialPositions.push(Qt.vector2d(positions[i][0], positions[i][1]));
+            console.log("Initial position " + i + ": " + initialPositions[i].x + ", " + initialPositions[i].y);
         }
 
         if (playerCount > maxPlayerCount) playerCount = maxPlayerCount;
@@ -200,7 +250,8 @@ ApplicationWindow {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
+                applyEffectToLeds(players[index], targetZones[index], CelluloBluetoothEnums.VisualEffectConstSingle, ledColors[index]);
+                // players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
 
                 var initializing = findPlayersInState("INIT");
                 if (initializing.length == 1) {
@@ -236,7 +287,8 @@ ApplicationWindow {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "READY") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
+                applyEffectToLeds(players[index], targetZones[index], CelluloBluetoothEnums.VisualEffectConstSingle, ledColors[index]);
+                // players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
 
                 var mover = findPlayersInState("MOVING");
                 if (mover.length > 0) {
@@ -256,7 +308,8 @@ ApplicationWindow {
                 players[index].setGoalPosition(lastPositions[index].x, lastPositions[index].y, linearVelocity);
             }
             else {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
+                applyEffectToLeds(players[index], targetZones[index], CelluloBluetoothEnums.VisualEffectConstSingle, ledColors[index]);
+                // players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
                 players[index].blinkPeriod = 0;
 
                 // modify pose
@@ -271,7 +324,8 @@ ApplicationWindow {
                 players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
             }
             else if (newState == "READY") {
-                players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
+                applyEffectToLeds(players[index], targetZones[index], CelluloBluetoothEnums.VisualEffectConstSingle, ledColors[index]);
+                // players[index].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[index], 0);
                 players[index].blinkPeriod = 0;
             }
             break;
@@ -280,15 +334,6 @@ ApplicationWindow {
         var newPlayerStates = playerStates;
         newPlayerStates[index] = newState;
         playerStates = newPlayerStates;
-    }
-
-    function respondToZoneChange(robot, zone, value) {
-        if (value == 1) {
-            console.log("Player " + robot.number + " entered zone " + zone.name);
-        }
-        else {
-            console.log("Player " + robot.number + " left zone " + zone.name);
-        }
     }
 
     Column {
@@ -367,6 +412,7 @@ ApplicationWindow {
                         if (playerStates[index] == "INIT") {
                             console.log("Player " + index + " position initialized.");
                             changePlayerState(index, "READY");
+                            chooseNewTargetZones();
                         }
                         else {
                             lastPositions[index] = currentPositions[index];
@@ -504,7 +550,7 @@ ApplicationWindow {
 
             ComboBox {
                 id: mapListComboBox
-                currentIndex: 0
+                currentIndex: 1
                 enabled: gameState == "IDLE"
                 model: ListModel {
                     id: mapListItems
@@ -581,21 +627,47 @@ ApplicationWindow {
         }
     }
 
-    // Page {
-    //     id: zonesPaintedItem
+    Component.onCompleted: {
+        console.log("Completed");
+        mapListComboBox.currentIndex = 0;
+    }
+
+    // Canvas {
+    //     id: canvas
     //     anchors.top: robotLayout.bottom
     //     anchors.left: parent.left
     //     anchors.right: parent.right
     //     anchors.bottom: parent.bottom
-    //     visible: false
 
-    //     // Rectangle {
-    //     //     anchors.fill: parent
-    //     //     color: "#99ff99"
-    //     // }
+    //     onPaint: {
+    //         var ctx = canvas.getContext('2d');
+    //         ctx.reset();
+
+    //         console.log("Canvas size: " + canvas.width + "x" + canvas.height);
+
+    //         ctx.fillStyle = Qt.rgba(1.0, 0.9, 1.0);
+    //         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    //         ctx.beginPath();
+    //         var radius = Math.min(canvas.width * 0.2, canvas.height * 0.45);
+    //         var centerX = canvas.width * 0.25;
+    //         var centerY = canvas.height * 0.5;
+    //         ctx.ellipse(centerX - radius, centerY - radius, 2 * radius, 2 * radius);
+    //         ctx.fillStyle = Qt.rgba(0.5, 1.0, 0.5);
+    //         ctx.fill();
+
+    //         ctx.beginPath();
+    //         centerX = canvas.width * 0.75;
+    //         ctx.ellipse(centerX - radius, centerY - radius, 2 * radius, 2 * radius);
+    //         ctx.fillStyle = Qt.rgba(0.5, 0.5, 1.0);
+    //         ctx.fill();
+
+    //         var fontSize = radius; 
+
+    //         ctx.beginPath();
+    //         ctx.font = "bold " + fontSize + "px serif";
+    //         ctx.fillStyle = Qt.rgba(0.0, 0.0, 0.0);
+    //         ctx.fillText("2", centerX - 0.35 * fontSize, centerY + 0.45 * fontSize);
+    //     }
     // }
-
-    Component.onCompleted: {
-        mapListComboBox.currentIndex = 0;
-    }
 }

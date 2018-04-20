@@ -7,5 +7,6 @@
         <file>assets/a3-numbers-zones.json</file>
         <file>assets/a4-colors-config.json</file>
         <file>assets/a4-colors-zones.json</file>
+        <file>assets/6-green.svg</file>
     </qresource>
 </RCC>
