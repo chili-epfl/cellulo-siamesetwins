@@ -124,8 +124,7 @@ Page {
             validator: IntValidator { bottom: 5; top: 1000; }
 
             onEditingFinished: {
-                config.maxMoveDistance = parseInt(text)
-                game.config = config
+                game.config.maxMoveDistance = parseInt(text)
             }
         }
 
@@ -144,8 +143,7 @@ Page {
             validator: IntValidator { bottom: 5; top: 500; }
 
             onEditingFinished: {
-                config.linearVelocity = parseInt(text)
-                game.config = config
+                game.config.linearVelocity = parseInt(text)
             }
         }
 
@@ -164,8 +162,7 @@ Page {
             validator: IntValidator { bottom: 5; top: 150; }
 
             onEditingFinished: {
-                config.leadPoseDelta = parseInt(text)
-                game.config = config
+                game.config.leadPoseDelta = parseInt(text)
             }
         }
 
@@ -184,8 +181,7 @@ Page {
             validator: DoubleValidator { bottom: 5; top: 3600; }
 
             onEditingFinished: {
-                config.gameLength = parseFloat(text)
-                game.config = config
+                game.config.gameLength = parseFloat(text)
             }
         }
     }

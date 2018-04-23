@@ -156,18 +156,20 @@ Page {
         onTriggered: {
             animationProgress += 1
 
-            if (animationProgress < count) {
-                animationTimer.restart()
+            if (animationProgress > count) {
+                animationProgress = 0
+                chooseNewTargetZones()
+
+                for (var i = 0; i < players.length; ++i) {
+                    changePlayerState(players[i], "READY")
+                }
+
+                return
             }
             else {
-             chooseNewTargetZones()
-            }
+                animationTimer.restart()
 
-            for (var i = 0; i < players.length; ++i) {
-                if (animationProgress >= count) {
-                    changePlayerState(players[i], "READY");
-                }
-                else {
+                for (var i = 0; i < players.length; ++i) {
                     players[i].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[animationProgress % ledColors.length], 0)
                 }
             }
@@ -180,30 +182,50 @@ Page {
         return Math.floor(Math.random() * (max - min)) + min
     }
 
-    function chooseNewTargetZones() {
-        var occupiedZones = []
-
-        for (var i = 0; i < players.length; ++i) {
-            var oldTargetZone = players[i].targetZone
-            var neighbors = map.data["neighborNumbers"][oldTargetZone-1]
-
-            players[i].targetZone = neighbors[randomInt(0, neighbors.length)]
-            // while(find(occupiedZones, players[i].targetZone) != -1) {
-            //     players[i].targetZone = neighbors[randomInt(0, neighbors.length)]
-            // }
-            
-            console.log("Player " + i + " changed target zone from " + oldTargetZone + " to " + players[i].targetZone)
-
-            applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
-        }
-    }
-
     function find(list, element) {
         for (var i = 0; i < list.length; ++i)
             if (list[i] === element)
                 return i
 
         return -1
+    }
+
+    function chooseNewTargetZones() {
+        var occupiedZones = []
+        var remainingPlayers = []
+
+        for (var i = 0; i < players.length; ++i) {
+            if (find(map.data.cornerZones, players[i].targetZone) != -1) {
+                var oldTargetZone = players[i].targetZone
+                var neighbors = map.data["neighborNumbers"][oldTargetZone - 1]
+
+                do {
+                    players[i].targetZone = neighbors[randomInt(0, neighbors.length)]
+                } while (find(occupiedZones, players[i].targetZone) != -1)
+
+                occupiedZones.push([players[i].targetZone])
+                console.log("Player " + i + " changed target zone from " + oldTargetZone + " to " + players[i].targetZone)
+            }
+            else {
+                remainingPlayers.push(players[i])
+            }
+        }
+
+        for (var i = 0; i < remainingPlayers.length; ++i) {
+            var oldTargetZone = remainingPlayers[i].targetZone
+            var neighbors = map.data["neighborNumbers"][oldTargetZone-1]
+
+            do {
+                remainingPlayers[i].targetZone = neighbors[randomInt(0, neighbors.length)]
+            } while (find(occupiedZones, remainingPlayers[i].targetZone) != -1)
+
+            occupiedZones.push([remainingPlayers[i].targetZone])
+            console.log("Player " + remainingPlayers[i].number + " changed target zone from " + oldTargetZone + " to " + remainingPlayers[i].targetZone)
+        }
+
+        for (var i = 0; i < players.length; ++i) {
+            applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
+        }
     }
 
     function applyEffectToLeds(player, ledCount, effect, color) {
@@ -302,8 +324,6 @@ Page {
                     player.lastPoseDelta.x, 
                     player.lastPoseDelta.y
                 )
-
-                console.log("Player " + player.number + ": setting goal to " + player.lastPosition.x + ", " + player.lastPosition.y + ", " + config.linearVelocity)
 
                 player.setGoalPosition(
                     player.lastPosition.x, 
@@ -421,8 +441,6 @@ Page {
                 if (find(player.currentZones, zoneNumber) == -1) {
                     player.currentZones.push(zoneNumber)
                 }
-
-                console.log("Player " + player.number + " current zones: " + JSON.stringify(player.currentZones))
             }
             else {
                 console.log("Player " + player.number + " left zone " + zone.name)
