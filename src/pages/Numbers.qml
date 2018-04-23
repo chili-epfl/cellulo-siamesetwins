@@ -89,6 +89,7 @@ Page {
     }
 
     Rectangle {
+        id: mainDisplay
         anchors.centerIn: parent
         width: 0.7 * parent.width
         height: 0.7 * parent.height
@@ -119,14 +120,25 @@ Page {
         }
     }
 
-    Timer {
-        id: gameTimer
-        interval: config.gameLength * 1e3
-        onTriggered: endGame()
+    Button {
+        id: startStopButton
+        anchors.top: mainDisplay.bottom
+        anchors.horizontalCenter: mainDisplay.horizontalCenter
+        anchors.topMargin: 8
+        font.pixelSize: 0.05 * parent.height
+        text: "Start game"
+        onClicked: {
+            if (gameState == "IDLE") {
+                start()
+            }
+            else {
+                stop()
+            }
+        }
     }
 
     Timer {
-        id: updateTimer
+        id: gameTimer
         interval: 100
         repeat: true
         running: false
@@ -141,7 +153,8 @@ Page {
             var timeLeft = config.gameLength - 1e-3 * (new Date().getTime() - startTime)
 
             if (timeLeft <= 0) {
-                endGame()
+                timeRemainingText.text = "Game Over!"
+                stop()
             } else {
                 timeRemainingText.text = "Time left: " + timeLeft.toFixed(2)
             }
@@ -267,14 +280,6 @@ Page {
         }
     }
 
-    function endGame() {
-        for (var i = 0; i < players.length; ++i) {
-            changePlayerState(players[i], "IDLE")
-        }
-
-        changeGameState("IDLE")
-    }
-
     function changeGameState(newState) {
         if (gameState == newState)
             return
@@ -286,13 +291,12 @@ Page {
             zoneEngine.active = true
         }
         else if (newState == "RUNNING") {
-            updateTimer.start()
+            gameTimer.start()
         }
         else if (newState == "IDLE") {
             zoneEngine.active = false
-            updateTimer.stop()
-            updateTimer.startTime = 0
-
+            gameTimer.stop()
+            gameTimer.startTime = 0
         }
 
         gameState = newState
@@ -312,14 +316,17 @@ Page {
                     map.initialPositions[player.number].x,
                     map.initialPositions[player.number].y
                 )
+
                 player.currentPosition = Qt.vector2d(
                     player.x,
                     player.y
                 )
+
                 player.lastPoseDelta = Qt.vector2d(
                     map.initialPositions[player.number].x - map.initialPositions[0].x, 
                     map.initialPositions[player.number].y - map.initialPositions[0].y
                 )
+
                 player.currentPoseDelta = Qt.vector2d(
                     player.lastPoseDelta.x, 
                     player.lastPoseDelta.y
@@ -566,12 +573,16 @@ Page {
 
         if (players.length < map.minPlayers) {
             toast.show("Minimum number of players not met (minimum: " + map.minPlayers + ", current: " + players.length + ")")
+            stop()
             return
         }
         else if (players.length > map.maxPlayers) {
             toast.show("Maximum number of players exceeded (maximum: " + map.maxPlayers + ", current: " + players.length + ")")
+            stop()
             return
         }
+
+        startStopButton.text = "Stop game"
 
         console.log("Starting game with " + players.length + " players")
 
@@ -593,5 +604,16 @@ Page {
 
             zoneEngine.addNewClient(players[i])
         }
+    }
+
+    function stop() {
+        for (var i = 0; i < players.length; ++i) {
+            changePlayerState(players[i], "IDLE")
+        }
+
+        changeGameState("IDLE")
+        
+        timeRemainingText.text = null
+        startStopButton.text = "Start game"
     }
 }

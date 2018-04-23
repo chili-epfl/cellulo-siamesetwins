@@ -78,12 +78,11 @@ ApplicationWindow {
 
             ItemDelegate {
                 id: startItem
-                text: qsTr("Start Game")
+                text: qsTr("Open Game")
                 width: parent.width
                 onClicked: {
                     numbers.players = robotSettings.robots
                     stackView.push(numbers)
-                    numbers.start()
                     drawer.close()
                     // activityOn = true
                     // game.drawZones(game.alpha)
