@@ -19,11 +19,12 @@ Page {
     property var map
     property var players
 
-    // shared game state
     property string gameState: "IDLE"
+    property int score
     property var ledColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
     property int mobilePlayerIndex: -1
     property int leadingPlayerIndex: -1
+    property int animationProgress: 0
 
     property var gameTransitions: {
         "IDLE": [
@@ -49,6 +50,7 @@ Page {
             "LEADING", 
             "STATIC", 
             "MOVING", 
+            "CELEBRATING",
             "IDLE"
         ],
         "FOLLOWING": [
@@ -68,6 +70,9 @@ Page {
             "READY", 
             "IDLE"
         ],
+        "CELEBRATING": [
+            "READY"
+        ],
         "OUT": [
             "READY", 
             "IDLE"
@@ -83,21 +88,113 @@ Page {
         active: false
     }
 
+    Rectangle {
+        anchors.centerIn: parent
+        width: 0.7 * parent.width
+        height: 0.7 * parent.height
+        color: "#ccccff"
+        border.color: "#cccccc"
+        border.width: 8
+        radius: 16
+
+        Column {
+            width: parent.width
+            height: parent.height
+            
+            Text {
+                id: timeRemainingText
+                anchors.horizontalCenter: parent.horizontalCenter
+                verticalAlignment: Text.AlignVCenter
+                height: 0.333 * parent.height
+                font.pixelSize: 0.1 * parent.height
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                verticalAlignment: Text.AlignVCenter
+                height: 0.666 * parent.height
+                text: "Score: " + score
+                font.pixelSize: 0.2 * parent.height
+            }
+        }
+    }
+
+    Timer {
+        id: gameTimer
+        interval: config.gameLength * 1e3
+        onTriggered: endGame()
+    }
+
+    Timer {
+        id: updateTimer
+        interval: 100
+        repeat: true
+        running: false
+        triggeredOnStart: true
+
+        property var startTime: 0
+        onTriggered: {
+            if (startTime == 0) {
+                startTime = new Date().getTime()
+            }
+
+            var timeLeft = config.gameLength - 1e-3 * (new Date().getTime() - startTime)
+
+            if (timeLeft <= 0) {
+                endGame()
+            } else {
+                timeRemainingText.text = "Time left: " + timeLeft.toFixed(2)
+            }
+        }
+    }
+
+    Timer {
+        id: animationTimer
+        interval: 5e2
+
+        property int count: 8
+        onTriggered: {
+            animationProgress += 1
+
+            if (animationProgress < count) {
+                animationTimer.restart()
+            }
+            else {
+             chooseNewTargetZones()
+            }
+
+            for (var i = 0; i < players.length; ++i) {
+                if (animationProgress >= count) {
+                    changePlayerState(players[i], "READY");
+                }
+                else {
+                    players[i].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, ledColors[animationProgress % ledColors.length], 0)
+                }
+            }
+        }
+    }
+
     function randomInt(min, max) {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min)) + min;
+        min = Math.ceil(min)
+        max = Math.floor(max)
+        return Math.floor(Math.random() * (max - min)) + min
     }
 
     function chooseNewTargetZones() {
-        for (var i = 0; i < players.length; ++i) {
-            var oldTargetZone = players[i].targetZone;
-            var neighbors = map.data["neighborNumbers"][oldTargetZone-1];
-            players[i].targetZone = neighbors[randomInt(0, neighbors.length)];
-            
-            console.log("Player " + i + " changed target zone from " + oldTargetZone + " to " + players[i].targetZone);
+        var occupiedZones = []
 
-            applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor);
+        for (var i = 0; i < players.length; ++i) {
+            var oldTargetZone = players[i].targetZone
+            var neighbors = map.data["neighborNumbers"][oldTargetZone-1]
+
+            players[i].targetZone = neighbors[randomInt(0, neighbors.length)]
+            // while(find(occupiedZones, players[i].targetZone) != -1) {
+            //     players[i].targetZone = neighbors[randomInt(0, neighbors.length)]
+            // }
+            
+            console.log("Player " + i + " changed target zone from " + oldTargetZone + " to " + players[i].targetZone)
+
+            applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
         }
     }
 
@@ -106,63 +203,85 @@ Page {
             if (list[i] === element)
                 return i
 
-        return -1;
+        return -1
     }
 
     function applyEffectToLeds(player, ledCount, effect, color) {
         for (var i = 0; i < ledCount; ++i) {
-            player.setVisualEffect(effect, color, i);
+            player.setVisualEffect(effect, color, i)
         }
         for (var i = ledCount; i < 6; ++i) {
-            player.setVisualEffect(effect, "#000000", i);
+            player.setVisualEffect(effect, "#000000", i)
         }
     }
 
     function findPlayersInState(state) {
-        var found = [];
+        var found = []
         for (var i = 0; i < players.length; ++i)
             if (players[i].state == state)
-                found.push(players[i]);
+                found.push(players[i])
 
-        return found;
+        return found
     }
 
     function checkZones() {
-        var allPlayersInTargetZone = true;
+        var targetReached = true
         for (var i = 0; i < players.length; ++i) {
-            if (find(players[i].currentZones, players[i].targetZone) == -1){
-                allPlayersInTargetZone = false;
+            if (players[i].state != "READY") {
+                targetReached = false
+                break
+            }
+            if (find(players[i].currentZones, players[i].targetZone) == -1) {
+                targetReached = false
+                break
             }
         }
 
-        if (allPlayersInTargetZone) {
-            chooseNewTargetZones();
+        if (targetReached) {
+            score += 1
+            for (var i = 0; i < players.length; ++i) {
+                changePlayerState(players[i], "CELEBRATING")
+            }
         }
+    }
+
+    function endGame() {
+        for (var i = 0; i < players.length; ++i) {
+            changePlayerState(players[i], "IDLE")
+        }
+
+        changeGameState("IDLE")
     }
 
     function changeGameState(newState) {
         if (gameState == newState)
-            return;
+            return
 
-        console.assert(find(gameTransitions[gameState], newState) != -1);
-        console.log("Game state changed from " + gameState + " to " + newState);
+        console.assert(find(gameTransitions[gameState], newState) != -1)
+        console.log("Game state changed from " + gameState + " to " + newState)
 
         if (newState == "INIT") {
             zoneEngine.active = true
         }
+        else if (newState == "RUNNING") {
+            updateTimer.start()
+        }
         else if (newState == "IDLE") {
             zoneEngine.active = false
+            updateTimer.stop()
+            updateTimer.startTime = 0
+
         }
 
-        gameState = newState;
+        gameState = newState
     }
 
     function changePlayerState(player, newState) {
         if (player.state == newState)
-            return;
+            return
 
-        console.log("Player " + player.number + " state changed from " + player.state + " to " + newState);
-        console.assert(find(playerTransitions[player.state], newState) != -1);
+        console.log("Player " + player.number + " state changed from " + player.state + " to " + newState)
+        console.assert(find(playerTransitions[player.state], newState) != -1)
 
         switch (player.state) {
             case "IDLE":
@@ -192,115 +311,104 @@ Page {
                     config.linearVelocity
                 )
 
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FFFFFF", 10);
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FFFFFF", 10)
             }
-            break;
+            break
         
             case "INIT":
             if (newState == "IDLE") {
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0)
             }
             else if (newState == "READY") {
-                checkZones()
-
-                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
-
-                var initializing = findPlayersInState("INIT");
+                var initializing = findPlayersInState("INIT")
                 if (initializing.length == 1) {
-                    changeGameState("RUNNING");
+                    chooseNewTargetZones()
+                    changeGameState("RUNNING")
                 }
             }
-            break;
+            break
         
             case "READY":
             if (newState == "IDLE") {
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0)
             }
             else if (newState == "STATIC") {
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectWaiting, player.ledColor, 0);
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectWaiting, player.ledColor, 0)
 
-                var staticPlayers = findPlayersInState("STATIC");
+                var staticPlayers = findPlayersInState("STATIC")
                 if (staticPlayers.length == (players.length - 2)) {
-                    var readyPlayers = findPlayersInState("READY");
+                    var readyPlayers = findPlayersInState("READY")
                     for (var i = 0; i < readyPlayers.length; ++i) {
                         if (readyPlayers[i] != player)
-                            changePlayerState(readyPlayers[i], "MOVING");
+                            changePlayerState(readyPlayers[i], "MOVING")
                     }
                 }
             }
             else if (newState == "MOVING") {
-                player.blinkPeriod = 40;
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, player.blinkPeriod);
+                player.blinkPeriod = 40
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, player.blinkPeriod)
             }
-            break;
+            else if (newState == "CELEBRATING") {
+                animationProgress = 0
+                animationTimer.restart()
+            }
+            break
 
             case "FOLLOWING":
             if (newState == "READY") {
-                var followers = findPlayersInState("FOLLOWING");
+                var followers = findPlayersInState("FOLLOWING")
                 if (followers.length == 1) {
-                    var leader = findPlayersInState("LEADING");
-                    console.assert(leader.length == 1);
-                    changePlayerState(leader[0], "READY");
+                    var leader = findPlayersInState("LEADING")
+                    console.assert(leader.length == 1)
+                    changePlayerState(leader[0], "READY")
                 }
             }
         
             case "STATIC":
             if (newState == "IDLE") {
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0)
             }
             else if (newState == "READY") {
-                checkZones()
-
-                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
-
-                var mover = findPlayersInState("MOVING");
+                var mover = findPlayersInState("MOVING")
                 if (mover.length > 0) {
-                    changePlayerState(mover[0], "READY");
+                    changePlayerState(mover[0], "READY")
                 }
             }
-            break;
+            break
             
             case "MOVING":
             if (newState == "IDLE") {
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0)
             }
             else if (newState == "OUT") {
-                player.blinkPeriod = 5;
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FF0000", player.blinkPeriod);
-                player.simpleVibrate(300, 300, 6.28, 200, 300);
-                player.setGoalPosition(player.lastPosition.x, player.lastPosition.y, config.linearVelocity);
+                player.blinkPeriod = 5
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FF0000", player.blinkPeriod)
+                player.simpleVibrate(300, 300, 6.28, 200, 300)
+                player.setGoalPosition(player.lastPosition.x, player.lastPosition.y, config.linearVelocity)
             }
             else if (newState == "READY") {
-                checkZones()
-
-                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
-                player.blinkPeriod = 0;
-
                 // modify pose
-                player.lastPosition = player.currentPosition;
+                player.lastPosition = player.currentPosition
                 for (var i = 0; i < players.length; ++i)
-                    players[i].lastPoseDelta = players[i].currentPosition.minus(players[0].currentPosition);
+                    players[i].lastPoseDelta = players[i].currentPosition.minus(players[0].currentPosition)
             }
-            break;
+            break
         
             case "OUT":
             if (newState == "IDLE") {
-                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0);
+                player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#000000", 0)
             }
-            else if (newState == "READY") {
-                checkZones()
-
-                applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor);
-                // player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, player.ledColor, 0);
-                player.blinkPeriod = 0;
-            }
-            break;
+            break
         }
 
-        player.state = newState;
+        player.state = newState
+
+        if (player.state == "READY") {
+            player.blinkPeriod = 0
+            applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor)
+
+            checkZones()
+        }
     }
 
     function zoneValueChanged(player) {
@@ -308,16 +416,16 @@ Page {
             var zoneNumber = map.data["zoneNumbers"][zone.name]
 
             if (value == 1) {
-                console.log("Player " + player.number + " entered zone " + zone.name);
+                console.log("Player " + player.number + " entered zone " + zone.name)
 
                 if (find(player.currentZones, zoneNumber) == -1) {
-                    player.currentZones.push(zoneNumber);
+                    player.currentZones.push(zoneNumber)
                 }
 
-                console.log("Player " + player.number + " current zones: " + JSON.stringify(player.currentZones));
+                console.log("Player " + player.number + " current zones: " + JSON.stringify(player.currentZones))
             }
             else {
-                console.log("Player " + player.number + " left zone " + zone.name);
+                console.log("Player " + player.number + " left zone " + zone.name)
 
                 var newCurrentZones = []
                 for (var i = 0; i < player.currentZones.length; ++i) {
@@ -325,7 +433,7 @@ Page {
                         newCurrentZones.push(player.currentZones[i])
                     }
                 }
-                player.currentZones = newCurrentZones;
+                player.currentZones = newCurrentZones
             }
         }
     }
@@ -335,9 +443,9 @@ Page {
             if (gameState == "RUNNING") {
                 if (player.kidnapped == false) {
                     if (player.state == "READY")
-                        changePlayerState(player, "STATIC");
+                        changePlayerState(player, "STATIC")
                     else if (player.state == "STATIC")
-                        changePlayerState(player, "READY");
+                        changePlayerState(player, "READY")
                 }
             }
         }
@@ -345,20 +453,20 @@ Page {
 
     function trackingGoalReached(player) {
         return function() {
-            player.clearTracking();
+            player.clearTracking()
 
             if (player.state == "INIT") {
-                console.log("Player " + player.number + " position initialized.");
-                changePlayerState(player, "READY");
+                console.log("Player " + player.number + " position initialized.")
+                changePlayerState(player, "READY")
             }
             else {
-                player.lastPosition = player.currentPosition;
+                player.lastPosition = player.currentPosition
 
                 if (player.state == "FOLLOWING") {
-                    changePlayerState(player, "READY");
+                    changePlayerState(player, "READY")
                 }
                 else if (player.state == "OUT") {
-                    changePlayerState(player, "READY");
+                    changePlayerState(player, "READY")
                 }
             }
         }
@@ -367,40 +475,28 @@ Page {
     function poseChanged(player) {
         return function() {
             if (gameState != "IDLE") {
-                player.currentPosition = Qt.vector2d(player.x, player.y);
-                player.currentPoseDelta = player.currentPosition.minus(players[0].currentPosition);
+                player.currentPosition = Qt.vector2d(player.x, player.y)
+                player.currentPoseDelta = player.currentPosition.minus(players[0].currentPosition)
             }
 
             if (gameState == "RUNNING") {
                 if (player.state == "READY") {
-                    var allPlayersReady = true;
-                    for (var i = 0; i < players.length; ++i) {
-                        if (players[i].state != "READY") {
-                            allPlayersReady = false;
-                            break;
-                        }
-                    }
-
-                    if (allPlayersReady) {
-                        checkZones();
-                    }
-
-                    var staticPlayers = findPlayersInState("STATIC");
+                    var staticPlayers = findPlayersInState("STATIC")
                     if (staticPlayers.length > 0) {
                         if (staticPlayers.length == players.length - 1) {
-                            changePlayerState(player, "MOVING");
+                            changePlayerState(player, "MOVING")
                         }
                         else {
-                            player.setGoalPosition(player.lastPosition.x, player.lastPosition.y, linearVelocity);
+                            player.setGoalPosition(player.lastPosition.x, player.lastPosition.y, linearVelocity)
                         }
                     }
                     else {
-                        var positionDelta = player.currentPosition.minus(player.lastPosition);
-                        var absoluteDelta = Math.sqrt(positionDelta.dotProduct(positionDelta));
+                        var positionDelta = player.currentPosition.minus(player.lastPosition)
+                        var absoluteDelta = Math.sqrt(positionDelta.dotProduct(positionDelta))
 
                         // assume leader position after moving far enough
                         if (absoluteDelta > config.leadPoseDelta) {
-                            changePlayerState(player, "LEADING");
+                            changePlayerState(player, "LEADING")
                         }
                     }
                 }
@@ -408,37 +504,37 @@ Page {
                     // instruct others to follow
                     for (var i = 0; i < players.length; ++i) {
                         if (i != player.number) {
-                            changePlayerState(players[i], "FOLLOWING");
-                            var goalPosition = player.currentPosition.minus(player.lastPoseDelta).plus(players[i].lastPoseDelta);
-                            players[i].setGoalPosition(goalPosition.x, goalPosition.y, config.linearVelocity);
+                            changePlayerState(players[i], "FOLLOWING")
+                            var goalPosition = player.currentPosition.minus(player.lastPoseDelta).plus(players[i].lastPoseDelta)
+                            players[i].setGoalPosition(goalPosition.x, goalPosition.y, config.linearVelocity)
                         }
                     }
 
-                    player.lastPosition = player.currentPosition;
+                    player.lastPosition = player.currentPosition
                 }
                 else if (player.state == "STATIC") {
-                    player.setGoalPosition(player.lastPosition.x, player.lastPosition.y, config.linearVelocity);
+                    player.setGoalPosition(player.lastPosition.x, player.lastPosition.y, config.linearVelocity)
                 }
                 else if (player.state == "MOVING") {
                     // limit free movement
-                    var positionDelta = player.currentPosition.minus(player.lastPosition);
-                    var absoluteDelta = Math.sqrt(positionDelta.dotProduct(positionDelta));
+                    var positionDelta = player.currentPosition.minus(player.lastPosition)
+                    var absoluteDelta = Math.sqrt(positionDelta.dotProduct(positionDelta))
 
                     if (absoluteDelta > config.maxMoveDistance) {
-                        changePlayerState(player, "OUT");
+                        changePlayerState(player, "OUT")
                     }
                     else {
-                        var blinkPeriod = player.blinkPeriod;
+                        var blinkPeriod = player.blinkPeriod
                         if (absoluteDelta > 0.9 * config.maxMoveDistance)
-                            blinkPeriod = 10;
+                            blinkPeriod = 10
                         else if (absoluteDelta > 0.7 * config.maxMoveDistance)
-                            blinkPeriod = 20;
+                            blinkPeriod = 20
                         else if (absoluteDelta > 0.5 * config.maxMoveDistance)
-                            blinkPeriod = 40;
+                            blinkPeriod = 40
 
                         if (blinkPeriod != player.blinkPeriod) {
-                            player.blinkPeriod = blinkPeriod;
-                            player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, player.blinkPeriod);
+                            player.blinkPeriod = blinkPeriod
+                            player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, player.blinkPeriod)
                         }
                     }
                 }
@@ -448,6 +544,8 @@ Page {
     }
 
     function start() {
+        timeRemainingText.text = "Time left: " + config.gameLength.toFixed(2)
+
         if (players.length < map.minPlayers) {
             toast.show("Minimum number of players not met (minimum: " + map.minPlayers + ", current: " + players.length + ")")
             return
@@ -470,7 +568,7 @@ Page {
             players[i].trackingGoalReached.connect(trackingGoalReached(players[i]))
             players[i].poseChanged.connect(poseChanged(players[i]))
             players[i].ledColor = ledColors[i]
-            players[i].targetZone = 6 - i;
+            players[i].targetZone = 6 - i
             players[i].currentZones = []
 
             changePlayerState(players[i], "INIT")

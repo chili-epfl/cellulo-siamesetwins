@@ -85,7 +85,7 @@ ApplicationWindow {
                     stackView.push(numbers)
                     numbers.start()
                     drawer.close()
-                    activityOn = true
+                    // activityOn = true
                     // game.drawZones(game.alpha)
                 }
             }
@@ -96,7 +96,7 @@ ApplicationWindow {
                 onClicked: {
                     stackView.push(gameSettings)
                     drawer.close()
-                    activityOn = false
+                    // activityOn = false
                 }
             }
 
@@ -106,7 +106,7 @@ ApplicationWindow {
                 onClicked: {
                     stackView.push(robotSettings)
                     drawer.close()
-                    activityOn = false
+                    // activityOn = false
                 }
             }
 

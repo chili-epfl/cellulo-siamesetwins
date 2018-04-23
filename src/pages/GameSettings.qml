@@ -42,6 +42,7 @@ Page {
         property real linearVelocity
         property real maxMoveDistance
         property real leadPoseDelta
+        property real gameLength
     }
 
     function loadMap(name) {
@@ -69,10 +70,12 @@ Page {
         config.maxMoveDistance = config["maxMoveDistance"]
         config.linearVelocity = config["linearVelocity"]
         config.leadPoseDelta = config["leadPoseDelta"]
+        config.gameLength = config["gameLength"]
 
         maxMoveDistanceInput.text = config.maxMoveDistance
         linearVelocityInput.text = config.linearVelocity
         leadPoseDeltaInput.text = config.leadPoseDelta
+        gameLengthInput.text = config.gameLength
 
         game.map = map 
         game.config = config
@@ -120,7 +123,10 @@ Page {
 
             validator: IntValidator { bottom: 5; top: 1000; }
 
-            onEditingFinished: config.maxMoveDistance = parseInt(text)
+            onEditingFinished: {
+                config.maxMoveDistance = parseInt(text)
+                game.config = config
+            }
         }
 
         Text {
@@ -137,7 +143,10 @@ Page {
 
             validator: IntValidator { bottom: 5; top: 500; }
 
-            onEditingFinished: config.linearVelocity = parseInt(text)
+            onEditingFinished: {
+                config.linearVelocity = parseInt(text)
+                game.config = config
+            }
         }
 
         Text {
@@ -154,7 +163,30 @@ Page {
 
             validator: IntValidator { bottom: 5; top: 150; }
 
-            onEditingFinished: config.leadPoseDelta = parseInt(text)
+            onEditingFinished: {
+                config.leadPoseDelta = parseInt(text)
+                game.config = config
+            }
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            text: qsTr("Game length (in s): ")
+            font.bold: true
+        }
+
+        TextInput {
+            id: gameLengthInput
+            inputMethodHints: Qt.ImhFormattedNumbersOnly
+            Layout.minimumWidth: 40
+            Layout.preferredWidth: 40
+
+            validator: DoubleValidator { bottom: 5; top: 3600; }
+
+            onEditingFinished: {
+                config.gameLength = parseFloat(text)
+                game.config = config
+            }
         }
     }
 
