@@ -5,7 +5,7 @@
   "minPlayers": 2,
   "maxPlayers": 3,
   "maxMoveDistance": 170.0,
-  "leadPoseDelta": 30.0,
+  "leadPoseDelta": 20.0,
   "gameLength": 180.0,
   "initialPositions": [
     [ 75.0, 72.0],
