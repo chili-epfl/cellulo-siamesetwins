@@ -6,7 +6,7 @@
   "minPlayers": 2,
   "maxPlayers": 3,
   "maxMoveDistance": 170.0,
-  "translationDelta": 20.0,
+  "translationDelta": 30.0,
   "rotationDelta": 20.0,
   "gameLength": 180.0,
   "initialPositions": [

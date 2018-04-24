@@ -329,6 +329,18 @@ Page {
         gameState = newState
     }
 
+    function updatePose() {
+        for (var i = 0; i < players.length; ++i) {
+            if (currentAxis) {
+                players[i].lastPoseDelta = players[i].x - players[0].x
+            }
+            else {
+                players[i].lastPoseDelta = players[i].y - players[0].y
+            }
+            players[i].lastPosition = Qt.vector3d(players[i].x, players[i].y, players[i].theta)
+        }
+    }
+
     function changePlayerState(player, newState) {
         if (player.state == newState)
             return
@@ -369,7 +381,14 @@ Page {
             break
         
             case "READY":
-            if (newState == "CELEBRATING") {
+            if (newState == "MOVING" || newState == "ROTATING") {
+                for (var i = 0; i < players.length; ++i) {
+                    if (i != player.number) {
+                        changePlayerState(players[i], "FOLLOWING")
+                    }
+                }
+            }
+            else if (newState == "CELEBRATING") {
                 animationProgress = 0
                 animationTimer.restart()
             }
@@ -377,13 +396,13 @@ Page {
 
             case "MOVING":
             if (newState == "READY") {
-                player.lastPosition = Qt.vector3d(player.x, player.y, player.lastPosition.z)
+                updatePose()
             }
             break
 
             case "ROTATING":
             if (newState == "READY") {
-                player.lastPosition = Qt.vector3d(player.lastPosition.x, player.lastPosition.y, player.theta)
+                updatePose()
             }
             break
 
@@ -397,7 +416,6 @@ Page {
                     }
                     console.assert(leader != null)
                     changePlayerState(leader, "READY")
-                    leader.setGoalPose(leader.lastPosition.x, leader.lastPosition.y, leader.lastPosition.z, config.linearVelocity, config.angularVelocity)
                 }
             }
         }
@@ -531,7 +549,7 @@ Page {
                             var radius = Math.sqrt(offset.dotProduct(offset))
                             var angle = Math.atan2(-offset.x, offset.y)
 
-                            console.log("Offset: " + offset.x + ", " + offset.y)
+                            // console.log("Offset: " + offset.x + ", " + offset.y)
 
                             // prevent issue when player.theta wraps around
                             var angleDelta = player.theta - player.previousTheta
@@ -552,10 +570,10 @@ Page {
                             var newAngle = angle + angleDelta
                             var newOffset = Qt.vector2d(-radius * Math.sin(newAngle), radius * Math.cos(newAngle))
 
-                            console.log("Angle: " + angle + ", angle delta: " + angleDelta + ", new angle: " + newAngle)
-                            console.log("New offset: " + newOffset.x + ", " + newOffset.y)
+                            // console.log("Angle: " + angle + ", angle delta: " + angleDelta + ", new angle: " + newAngle)
+                            // console.log("New offset: " + newOffset.x + ", " + newOffset.y)
 
-                            players[i].setGoalPose(player.x + newOffset.x, player.y + newOffset.y, players[i].lastPosition.z, config.linearVelocity, config.angularVelocity)
+                            players[i].setGoalPosition(player.x + newOffset.x, player.y + newOffset.y,config.linearVelocity)
                         }
                     }
                 }
@@ -567,11 +585,11 @@ Page {
 
                             if (currentAxis) {
                                 var goalPosition = player.x - player.lastPoseDelta + players[i].lastPoseDelta
-                                players[i].setGoalPosition(goalPosition, players[i].y, players[i].lastPosition.z, config.linearVelocity, config.angularVelocity)
+                                players[i].setGoalPosition(goalPosition, players[i].y, config.linearVelocity)
                             }
                             else {
                                 var goalPosition = player.y - player.lastPoseDelta + players[i].lastPoseDelta
-                                players[i].setGoalPosition(players[i].x, goalPosition, players[i].lastPosition.z, config.linearVelocity, config.angularVelocity)
+                                players[i].setGoalPosition(players[i].x, goalPosition, config.linearVelocity)
                             }
                         }
                     }
