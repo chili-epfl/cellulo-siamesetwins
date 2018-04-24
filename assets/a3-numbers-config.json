@@ -2,15 +2,17 @@
   "physicalWidth": 420.0,
   "physicalHeight": 297.0,
   "linearVelocity": 200.0,
+  "angularVelocity": 1.5,
   "minPlayers": 2,
   "maxPlayers": 3,
   "maxMoveDistance": 170.0,
-  "leadPoseDelta": 20.0,
+  "translationDelta": 20.0,
+  "rotationDelta": 20.0,
   "gameLength": 180.0,
   "initialPositions": [
-    [ 75.0, 72.0],
+    [ 65.0, 72.0],
     [210.0, 72.0],
-    [345.0, 72.0]
+    [355.0, 72.0]
   ],
   "data": {
   	"initialNumbers": [6, 5, 1],

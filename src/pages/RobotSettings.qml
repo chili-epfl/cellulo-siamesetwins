@@ -71,6 +71,7 @@ Page {
                     property color ledColor
                     property int blinkPeriod
                     property var lastPosition
+                    property var previousTheta
                     property var lastPoseDelta
                     property var currentPoseDelta
                     property var targetZone

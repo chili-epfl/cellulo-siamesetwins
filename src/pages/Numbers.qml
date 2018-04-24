@@ -51,7 +51,8 @@ Page {
         ],
         "READY": [
             "FOLLOWING",
-            "LEADING",
+            "MOVING",
+            "ROTATING",
             "CELEBRATING",
             "IDLE"
         ],
@@ -59,7 +60,11 @@ Page {
             "READY",
             "IDLE"
         ],
-        "LEADING": [
+        "MOVING": [
+            "READY", 
+            "IDLE"
+        ],
+        "ROTATING": [
             "READY", 
             "IDLE"
         ],
@@ -370,13 +375,29 @@ Page {
             }
             break
 
+            case "MOVING":
+            if (newState == "READY") {
+                player.lastPosition = Qt.vector3d(player.x, player.y, player.lastPosition.z)
+            }
+            break
+
+            case "ROTATING":
+            if (newState == "READY") {
+                player.lastPosition = Qt.vector3d(player.lastPosition.x, player.lastPosition.y, player.theta)
+            }
+            break
+
             case "FOLLOWING":
             if (newState == "READY") {
                 var followers = findPlayersInState("FOLLOWING")
                 if (followers.length == 1) {
-                    var leader = findPlayersInState("LEADING")
-                    console.assert(leader.length == 1)
-                    changePlayerState(leader[0], "READY")
+                    var leader = findPlayersInState("ROTATING")[0]
+                    if (leader == null) {
+                        leader = findPlayersInState("MOVING")[0]
+                    }
+                    console.assert(leader != null)
+                    changePlayerState(leader, "READY")
+                    leader.setGoalPose(leader.lastPosition.x, leader.lastPosition.y, leader.lastPosition.z, config.linearVelocity, config.angularVelocity)
                 }
             }
         }
@@ -454,7 +475,7 @@ Page {
         return function() {
             player.clearTracking()
 
-            player.lastPosition = Qt.vector2d(player.x, player.y)
+            player.lastPosition = Qt.vector3d(player.x, player.y, player.theta)
 
             if (player.state == "INIT") {
                 console.log("Player " + player.number + " position initialized.")
@@ -483,13 +504,62 @@ Page {
                 if (player.state == "READY") {
                     checkZones()
 
-                    // assume leader position after moving far enough
-                    var delta = currentAxis ? player.lastPosition.x - player.x : player.lastPosition.y - player.y
-                    if (Math.abs(delta) > config.leadPoseDelta) {
-                        changePlayerState(player, "LEADING")
+                    // first check for rotation
+                    var delta = player.lastPosition.z - player.theta
+                    if (Math.abs(delta) > config.rotationDelta) {
+                        player.previousTheta = player.theta
+                        changePlayerState(player, "ROTATING")
+                    }
+
+                    // now check for translation
+                    delta = currentAxis ? player.lastPosition.x - player.x : player.lastPosition.y - player.y
+                    if (Math.abs(delta) > config.translationDelta) {
+                        changePlayerState(player, "MOVING")
                     }
                 }
-                else if (player.state == "LEADING") {
+                else if (player.state == "ROTATING") {
+                    // instruct others to follow
+                    for (var i = 0; i < players.length; ++i) {
+                        if (i != player.number) {
+                            changePlayerState(players[i], "FOLLOWING")
+
+                            var offset = Qt.vector2d(
+                                players[i].lastPosition.x - player.lastPosition.x, 
+                                players[i].lastPosition.y - player.lastPosition.y
+                            )
+
+                            var radius = Math.sqrt(offset.dotProduct(offset))
+                            var angle = Math.atan2(-offset.x, offset.y)
+
+                            console.log("Offset: " + offset.x + ", " + offset.y)
+
+                            // prevent issue when player.theta wraps around
+                            var angleDelta = player.theta - player.previousTheta
+                            if (angleDelta > 180.0) {
+                                angleDelta = player.theta - player.lastPosition.z - 360.0
+                            }
+                            else if (angleDelta < -180.0) {
+                                angleDelta = player.theta - player.lastPosition.z + 360.0
+                            }
+                            else {
+                                angleDelta = player.theta - player.lastPosition.z
+                            }
+
+                            angleDelta *= Math.PI / 180.0
+                            player.previousTheta = player.theta
+
+
+                            var newAngle = angle + angleDelta
+                            var newOffset = Qt.vector2d(-radius * Math.sin(newAngle), radius * Math.cos(newAngle))
+
+                            console.log("Angle: " + angle + ", angle delta: " + angleDelta + ", new angle: " + newAngle)
+                            console.log("New offset: " + newOffset.x + ", " + newOffset.y)
+
+                            players[i].setGoalPose(player.x + newOffset.x, player.y + newOffset.y, players[i].lastPosition.z, config.linearVelocity, config.angularVelocity)
+                        }
+                    }
+                }
+                else if (player.state == "MOVING") {
                     // instruct others to follow
                     for (var i = 0; i < players.length; ++i) {
                         if (i != player.number) {
@@ -497,16 +567,14 @@ Page {
 
                             if (currentAxis) {
                                 var goalPosition = player.x - player.lastPoseDelta + players[i].lastPoseDelta
-                                players[i].setGoalPosition(goalPosition, players[i].y, config.linearVelocity)
+                                players[i].setGoalPosition(goalPosition, players[i].y, players[i].lastPosition.z, config.linearVelocity, config.angularVelocity)
                             }
                             else {
                                 var goalPosition = player.y - player.lastPoseDelta + players[i].lastPoseDelta
-                                players[i].setGoalPosition(players[i].x, goalPosition, config.linearVelocity)
+                                players[i].setGoalPosition(players[i].x, goalPosition, players[i].lastPosition.z, config.linearVelocity, config.angularVelocity)
                             }
                         }
                     }
-
-                    player.lastPosition = Qt.vector2d(player.x, player.y)
                 }
             }
         }

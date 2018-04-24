@@ -41,7 +41,7 @@ Page {
 
         property real linearVelocity
         property real maxMoveDistance
-        property real leadPoseDelta
+        property real translationDelta
         property real gameLength
     }
 
@@ -69,12 +69,16 @@ Page {
 
         config.maxMoveDistance = config["maxMoveDistance"]
         config.linearVelocity = config["linearVelocity"]
-        config.leadPoseDelta = config["leadPoseDelta"]
+        config.angularVelocity = config["angularVelocity"]
+        config.translationDelta = config["translationDelta"]
+        config.rotationDelta = config["rotationDelta"]
         config.gameLength = config["gameLength"]
 
         maxMoveDistanceInput.text = config.maxMoveDistance
         linearVelocityInput.text = config.linearVelocity
-        leadPoseDeltaInput.text = config.leadPoseDelta
+        angularVelocityInput.text = config.angularVelocity
+        translationDeltaInput.text = config.translationDelta
+        rotationDeltaInput.text = config.rotationDelta
         gameLengthInput.text = config.gameLength
 
         game.map = map 
@@ -130,7 +134,7 @@ Page {
 
         Text {
             Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-            text: qsTr("Robot velocity (in mm/s): ")
+            text: qsTr("Robot linear velocity (in mm/s): ")
             font.bold: true
         }
 
@@ -149,12 +153,31 @@ Page {
 
         Text {
             Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            text: qsTr("Robot angular velocity (in mm/s): ")
+            font.bold: true
+        }
+
+        TextInput {
+            id: angularVelocityInput
+            inputMethodHints: Qt.ImhDigitsOnly
+            Layout.minimumWidth: 40
+            Layout.preferredWidth: 40
+
+            validator: IntValidator { bottom: 5; top: 500; }
+
+            onEditingFinished: {
+                game.config.angularVelocity = parseInt(text)
+            }
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
             text: qsTr("Required pose delta for leading (in mm): ")
             font.bold: true
         }
 
         TextInput {
-            id: leadPoseDeltaInput
+            id: translationDeltaInput
             inputMethodHints: Qt.ImhDigitsOnly
             Layout.minimumWidth: 40
             Layout.preferredWidth: 40
@@ -162,7 +185,20 @@ Page {
             validator: IntValidator { bottom: 5; top: 150; }
 
             onEditingFinished: {
-                game.config.leadPoseDelta = parseInt(text)
+                game.config.translationDelta = parseInt(text)
+            }
+        }
+
+        TextInput {
+            id: rotationDeltaInput
+            inputMethodHints: Qt.ImhDigitsOnly
+            Layout.minimumWidth: 40
+            Layout.preferredWidth: 40
+
+            validator: IntValidator { bottom: 5; top: 150; }
+
+            onEditingFinished: {
+                game.config.rotationDelta = parseInt(text)
             }
         }
 

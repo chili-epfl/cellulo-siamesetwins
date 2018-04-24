@@ -2,28 +2,28 @@
   {        
             "name": "number1",
             "type": "CIRCLEINNER",
-            "x": 75,
-            "y": 222,
+            "x": 65,
+            "y": 217,
             "r": 45
   },
   {        
             "name": "number2",
             "type": "CIRCLEINNER",
             "x": 210,
-            "y": 222,
+            "y": 217,
             "r": 45
   },
   {        
             "name": "number3",
             "type": "CIRCLEINNER",
-            "x": 345,
-            "y": 222,
+            "x": 355,
+            "y": 217,
             "r": 45
   },
   {        
             "name": "number4",
             "type": "CIRCLEINNER",
-            "x": 345,
+            "x": 355,
             "y": 72,
             "r": 45
   },
@@ -37,7 +37,7 @@
   {        
             "name": "number6",
             "type": "CIRCLEINNER",
-            "x": 75,
+            "x": 65,
             "y": 72,
             "r": 45
   }
