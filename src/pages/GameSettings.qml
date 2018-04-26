@@ -55,17 +55,12 @@ Page {
         map.physicalHeight = config["physicalHeight"]
         map.minPlayers = config["minPlayers"]
         map.maxPlayers = config["maxPlayers"]
-        map.data = config["data"];
-
-
-        var positions = config["initialPositions"]
-        map.initialPositions = []
-        for (var i = 0; i < positions.length; ++i) {
-            map.initialPositions.push(Qt.vector2d(positions[i][0], positions[i][1]))
-            console.log("Initial position " + i + ": " + map.initialPositions[i].x + ", " + map.initialPositions[i].y)
-        }
+        map.data = config["data"]
 
         map.zones = CelluloZoneJsonHandler.loadZonesQML(":/assets/" + name + "-zones.json")
+        for (var i = 0; i < map.zones.length; ++i) {
+            console.log("Loaded zone " + map.zones[i].name + " with center " + map.zones[i].x + ", " + map.zones[i].y)
+        }
 
         config.maxMoveDistance = config["maxMoveDistance"]
         config.linearVelocity = config["linearVelocity"]
