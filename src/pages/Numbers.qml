@@ -20,6 +20,7 @@ Page {
     property var players
 
     property string gameState: "IDLE"
+    property int movesRemaining: 0
     property int score
     property var horizontalColor: "#0000FF"
     property var verticalColor: "#00FF00"
@@ -104,13 +105,22 @@ Page {
                 height: 0.333 * parent.height
                 font.pixelSize: 0.1 * parent.height
             }
+            
+            Text {
+                id: movesRemainingText
+                anchors.horizontalCenter: parent.horizontalCenter
+                verticalAlignment: Text.AlignVCenter
+                height: 0.333 * parent.height
+                text: "Moves left: " + String(movesRemaining)
+                font.pixelSize: 0.2 * parent.height
+            }
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 verticalAlignment: Text.AlignVCenter
-                height: 0.666 * parent.height
+                height: 0.333 * parent.height
                 text: "Score: " + score
-                font.pixelSize: 0.2 * parent.height
+                font.pixelSize: 0.1 * parent.height
             }
         }
     }
@@ -248,8 +258,8 @@ Page {
             targets.push(map.data.zoneIndices[players[i].targetZone - 1])
         }
 
-        var minMoves = findMimimumMoves(map.data["zoneMatrix"], positions, targets, {}, 1, 10)
-        console.log("Minimum moves: " + minMoves)
+        movesRemaining = findMimimumMoves(map.data["zoneMatrix"], positions, targets, {}, 0, 10)
+        console.log("Minimum moves: " + movesRemaining)
     }
 
     function checkZones() {
@@ -373,9 +383,6 @@ Page {
                 changeGameState("RUNNING")
             }
 
-            if (areAllPlayersInState("READY"))
-                checkZones()
-
             resetLastPositions()
 
             player.setCasualBackdriveAssistEnabled(true)
@@ -406,6 +413,13 @@ Page {
             player.simpleVibrate(config.linearVelocity, config.linearVelocity, config.angularVelocity, 20, 0);
             blockingTimer.start()
             break
+        }
+
+        if (areAllPlayersInState("READY")) {
+            checkZones()
+            if (!areAllPlayersInState("CELEBRATING") && movesRemaining == 0) {
+                stop()
+            }
         }
     }
 
@@ -587,16 +601,20 @@ Page {
                     }
 
                     if (Math.abs(rotation) > config.rotationDelta) {
+                        movesRemaining -= 1
                         rotate(player, Math.sign(rotation))
                     }
-
-                    // now check for translation
-                    var translation = Qt.vector2d(player.x - player.lastPosition.x, player.y - player.lastPosition.y)
-                    if (Math.abs(translation.x) > config.translationDelta) {
-                        translate(player, [Math.sign(translation.x), 0])
-                    }
-                    else if (Math.abs(translation.y) > config.translationDelta) {
-                        translate(player, [0, Math.sign(translation.y)])
+                    else {
+                        // now check for translation
+                        var translation = Qt.vector2d(player.x - player.lastPosition.x, player.y - player.lastPosition.y)
+                        if (Math.abs(translation.x) > config.translationDelta) {
+                            movesRemaining -= 1
+                            translate(player, [Math.sign(translation.x), 0])
+                        }
+                        else if (Math.abs(translation.y) > config.translationDelta) {
+                            movesRemaining -= 1
+                            translate(player, [0, Math.sign(translation.y)])
+                        }
                     }
                 }
                 else if (player.state == "MOVING") {
@@ -853,9 +871,10 @@ Page {
             [ 0,  1]
         ]
 
+        if (depth == 0)
         for (var i = 0; i < positions.length; ++i) {
             console.log("Player " + i + " position: " + positions[i][0] + ",  " + positions[i][1])
-            memo[computePositionHash(positions)] = 1
+            memo[computePositionHash(positions)] = depth
         }
 
         var futures = []
@@ -866,7 +885,9 @@ Page {
                     nextPositions.push(findZoneAfterRotation(positions[j], rotations[i], positions[k]))
                 }
 
-                if (memo[computePositionHash(nextPositions)] == null) {
+                var hash = computePositionHash(nextPositions)
+                if (memo[hash] == null || memo[hash] > depth) {
+                    memo[hash] = depth
                     futures.push(nextPositions)
                 }
             }
@@ -902,7 +923,7 @@ Page {
 
             if (found) {
                 console.log("Found!")
-                return depth
+                return depth + 1
             }
             else if (accept) {
                 console.log("Accepted")
