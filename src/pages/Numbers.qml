@@ -69,10 +69,7 @@ Page {
             "IDLE"
         ],        
         "CELEBRATING": [
-            "READY"
-        ],
-        "OUT": [
-            "READY", 
+            "MOVING",
             "IDLE"
         ]
     }
@@ -163,7 +160,7 @@ Page {
         id: animationTimer
         interval: 5e2
 
-        property int count: 8
+        property int count: 6
         onTriggered: {
             animationProgress += 1
 
@@ -172,7 +169,7 @@ Page {
                 chooseNewTargetZones()
 
                 for (var i = 0; i < players.length; ++i) {
-                    changePlayerState(players[i], "READY")
+                    changePlayerState(players[i], "MOVING")
                 }
 
                 return
@@ -228,48 +225,47 @@ Page {
     }
 
     function chooseNewTargetZones() {
-        var occupiedZones = []
-        var remainingPlayers = []
+        var newTargetZones = []
 
         for (var i = 0; i < players.length; ++i) {
-            if (find(map.data.cornerZones, players[i].targetZone) != -1) {
-                var oldTargetZone = players[i].targetZone
-                var neighbors = map.data["neighborNumbers"][oldTargetZone - 1]
-
-                do {
-                    players[i].targetZone = neighbors[randomInt(0, neighbors.length)]
-                } while (find(occupiedZones, players[i].targetZone) != -1)
-
-                occupiedZones.push([players[i].targetZone])
-                console.log("Player " + i + " changed target zone from " + oldTargetZone + " to " + players[i].targetZone)
-            }
-            else {
-                remainingPlayers.push(players[i])
-            }
-        }
-
-        for (var i = 0; i < remainingPlayers.length; ++i) {
-            var oldTargetZone = remainingPlayers[i].targetZone
-            var neighbors = map.data["neighborNumbers"][oldTargetZone-1]
-
+            var choice
             do {
-                remainingPlayers[i].targetZone = neighbors[randomInt(0, neighbors.length)]
-            } while (find(occupiedZones, remainingPlayers[i].targetZone) != -1)
+                choice = 1 + randomInt(0, map.zones.length)
+            } while (choice == players[i].targetZone ||
+                     find(newTargetZones, choice) != -1)
 
-            occupiedZones.push([remainingPlayers[i].targetZone])
-            console.log("Player " + remainingPlayers[i].number + " changed target zone from " + oldTargetZone + " to " + remainingPlayers[i].targetZone)
+            newTargetZones.push(choice)
         }
 
         for (var i = 0; i < players.length; ++i) {
-            applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
+            console.log("Player " + i + " changed target zone from " + players[i].targetZone + " to " + newTargetZones[i])
+            players[i].targetZone = newTargetZones[i]
+            displayTargetZoneWithLeds(players[i], CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
         }
     }
 
-    function applyEffectToLeds(player, ledCount, effect, color) {
-        for (var i = 0; i < ledCount; ++i) {
+    function checkZones() {
+        var targetReached = true
+        for (var i = 0; i < players.length; ++i) {
+            if (players[i].currentZone != players[i].targetZone) {
+                targetReached = false
+                break
+            }
+        }
+
+        if (targetReached) {
+            score += 1
+            for (var i = 0; i < players.length; ++i) {
+                changePlayerState(players[i], "CELEBRATING")
+            }
+        }
+    }
+
+    function displayTargetZoneWithLeds(player, effect, color) {
+        for (var i = 0; i < player.targetZone; ++i) {
             player.setVisualEffect(effect, color, i)
         }
-        for (var i = ledCount; i < 6; ++i) {
+        for (var i = player.targetZone; i < 6; ++i) {
             player.setVisualEffect(effect, "#000000", i)
         }
     }
@@ -296,20 +292,9 @@ Page {
         return found
     }
 
-    function checkZones() {
-        var targetReached = true
+    function resetLastPositions() {
         for (var i = 0; i < players.length; ++i) {
-            if (players[i].currentZone != players[i].targetZone) {
-                targetReached = false
-                break
-            }
-        }
-
-        if (targetReached) {
-            score += 1
-            for (var i = 0; i < players.length; ++i) {
-                changePlayerState(players[i], "CELEBRATING")
-            }
+            players[i].lastPosition = Qt.vector3d(players[i].x, players[i].y, players[i].theta)
         }
     }
 
@@ -369,27 +354,25 @@ Page {
             case "INIT":
             player.targetZone = map.data["initialZones"][player.number]
             player.nextZone = player.targetZone
-            player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, "#FFFFFF", 10)
+            player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, 10)
             player.simpleVibrate(0, 0, 0, 0, 0)
             changePlayerState(player, "MOVING")
             break
         
             case "READY":
-            if (gameState == "INIT") {
-                var initializing = findPlayersInState("MOVING")
-                if (initializing.length == 0) {
-                    chooseNewTargetZones()
-                    changeGameState("RUNNING")
-                }
+            if (gameState == "INIT" && areAllPlayersInState("READY")) {
+                chooseNewTargetZones()
+                changeGameState("RUNNING")
             }
 
             if (areAllPlayersInState("READY"))
                 checkZones()
 
-            player.lastPosition = Qt.vector3d(player.x, player.y, player.theta)
-            applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor)
+            resetLastPositions()
+
             player.setCasualBackdriveAssistEnabled(true)
             player.simpleVibrate(0, 0, 0, 0, 0);
+            displayTargetZoneWithLeds(player, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor)
             break
         
             case "CELEBRATING":
@@ -400,18 +383,19 @@ Page {
             case "MOVING":
             player.setCasualBackdriveAssistEnabled(false)
             moveToZone(player, player.nextZone)
-            applyEffectToLeds(player, player.targetZone, CelluloBluetoothEnums.VisualEffectAlertSingle, player.ledColor)
+            displayTargetZoneWithLeds(player, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor)
             break
 
             case "CANCELLING":
             player.setCasualBackdriveAssistEnabled(false)
             moveToZone(player, player.nextZone)
+            displayTargetZoneWithLeds(player, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor)
             break
 
             case "BLOCKING":
             player.setCasualBackdriveAssistEnabled(false)
-            player.setVisualEffect(CelluloBluetoothEnums.VisualEffectAlertAll, "#FF0000", 0)
-            player.simpleVibrate(config.linearVelocity, config.linearVelocity, config.angularVelocity, 50, 0);
+            player.setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, "#FF0000", 0)
+            player.simpleVibrate(config.linearVelocity, config.linearVelocity, config.angularVelocity, 20, 0);
             blockingTimer.start()
             break
         }
@@ -423,6 +407,100 @@ Page {
             map.zones[zoneNumber - 1].y,
             config.linearVelocity
         )
+    }
+
+    /**
+     * Finds coordinates in zone matrix where player will find itselt after rotation.
+     * Inputs:
+     *  - center: zone matrix coords of cetner of rotation
+     *  - direction: positive if clockwise, negative if counter-clockwise
+     *  - position: zone matrix coords of player position
+     * Output:
+     *  - zone matrix coords of new player position
+    */
+    function findZoneAfterRotation(center, direction, position) {
+        if (center[0] == position[0] &&
+            center[1] == position[1]) {
+            return [position[0], position[1]]
+        }
+
+        var offset = [
+            position[0] - center[0],
+            position[1] - center[1]
+        ]
+
+        if (offset[0] == 0) {
+            if (offset[1] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0] - 1, position[1] ]
+                }
+                else {
+                    return [ position[0] + 1, position[1] ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0] + 1, position[1] ]
+                }
+                else {
+                    return [ position[0] - 1, position[1] ]
+                }
+            }
+        }
+        else if (offset[1] == 0) {
+            if (offset[0] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0], position[1] + 1 ]
+                }
+                else {
+                    return [ position[0], position[1] - 1 ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0], position[1] - 1 ]
+                }
+                else {
+                    return [ position[0], position[1] + 1 ]
+                }
+            }
+        }
+        else if (offset[0] > 0) {
+            if (offset[1] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0] - 1, position[1] + 1 ]
+                }
+                else {
+                    return [ position[0] + 1, position[1] - 1 ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0] + 1, position[1] + 1 ]
+                }
+                else {
+                    return [ position[0] - 1, position[1] - 1 ]
+                }
+            }
+        }
+        else {                    
+            if (offset[1] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0] - 1, position[1] - 1 ]
+                }
+                else {
+                    return [ position[0] + 1, position[1] + 1 ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0] + 1, position[1] - 1 ]
+                }
+                else {
+                    return [ position[0] - 1, position[1] + 1 ]
+                }
+            }
+        }
     }
 
     function rotate(player, delta) {
@@ -437,102 +515,12 @@ Page {
         console.log("Mover zone is " + player.currentZone + ", indices are " + moverZoneIndices[0] + ", " + moverZoneIndices[1])
 
         for (var i = 0; i < players.length; ++i) {
-            if (i == player.number) {
-                newZones.push(player.currentZone)
-                continue
-            }
-
-            var zone = players[i].currentZone
-            var playerZoneIndices = zoneIndices[zone - 1]
-            var newZoneIndices = []
-            
-            console.log("Player " + i + " zone is " + zone + ", indices are " + playerZoneIndices[0] + ", " + playerZoneIndices[1])
-
-            var offset = [
-                playerZoneIndices[0] - moverZoneIndices[0], 
-                playerZoneIndices[1] - moverZoneIndices[1]
-            ]
-
-            console.log("Player " + i + " offset is " + offset[0] + ", " + offset[1])
-
-            if (offset[0] == 0) {
-                if (offset[1] > 0) {
-                    if (delta > 0.0) {
-                        newZoneIndices = [ playerZoneIndices[0] - 1, playerZoneIndices[1] ]
-                    }
-                    else {
-                        newZoneIndices = [ playerZoneIndices[0] + 1, playerZoneIndices[1] ]
-                    }
-                }
-                else {
-                    if (delta > 0.0) {
-                        newZoneIndices = [ playerZoneIndices[0] + 1, playerZoneIndices[1] ]
-                    }
-                    else {
-                        newZoneIndices = [ playerZoneIndices[0] - 1, playerZoneIndices[1] ]
-                    }
-                }
-            }
-            else if (offset[1] == 0) {
-                if (offset[0] > 0) {
-                    if (delta > 0.0) {
-                        newZoneIndices = [ playerZoneIndices[0], playerZoneIndices[1] + 1 ]
-                    }
-                    else {
-                        newZoneIndices = [ playerZoneIndices[0], playerZoneIndices[1] - 1 ]
-                    }
-                }
-                else {
-                    if (delta > 0.0) {
-                        newZoneIndices = [ playerZoneIndices[0], playerZoneIndices[1] - 1 ]
-                    }
-                    else {
-                        newZoneIndices = [ playerZoneIndices[0], playerZoneIndices[1] + 1 ]
-                    }
-                }
-            }
-            else {
-                if (offset[0] > 0) {
-                    if (offset[1] > 0) {
-                        if (delta > 0.0) {
-                            newZoneIndices = [ playerZoneIndices[0] - 1, playerZoneIndices[1] + 1 ]
-                        }
-                        else {
-                            newZoneIndices = [ playerZoneIndices[0] + 1, playerZoneIndices[1] - 1 ]
-                        }
-                    }
-                    else {
-                        if (delta > 0.0) {
-                            newZoneIndices = [ playerZoneIndices[0] + 1, playerZoneIndices[1] + 1 ]
-                        }
-                        else {
-                            newZoneIndices = [ playerZoneIndices[0] - 1, playerZoneIndices[1] - 1 ]
-                        }
-                    }
-                }
-                else {                    
-                    if (offset[1] > 0) {
-                        if (delta > 0.0) {
-                            newZoneIndices = [ playerZoneIndices[0] - 1, playerZoneIndices[1] - 1 ]
-                        }
-                        else {
-                            newZoneIndices = [ playerZoneIndices[0] + 1, playerZoneIndices[1] + 1 ]
-                        }
-                    }
-                    else {
-                        if (delta > 0.0) {
-                            newZoneIndices = [ playerZoneIndices[0] + 1, playerZoneIndices[1] - 1 ]
-                        }
-                        else {
-                            newZoneIndices = [ playerZoneIndices[0] - 1, playerZoneIndices[1] + 1 ]
-                        }
-                    }
-                }
-            }
+            var playerZoneIndices = zoneIndices[players[i].currentZone - 1]
+            var newZoneIndices = findZoneAfterRotation(moverZoneIndices, delta, playerZoneIndices)
 
             if (newZoneIndices[0] < 0 || newZoneIndices[0] > zoneMatrix.length - 1 ||
                 newZoneIndices[1] < 0 || newZoneIndices[1] > zoneMatrix[0].length - 1) {
-                console.log("Player " + i + " cannot move from zone " + zone + " to indices " + newZoneIndices[0] + ", " + newZoneIndices[1])
+                console.log("Player " + i + " cannot move from zone " + players[i].currentZone + " to indices " + newZoneIndices[0] + ", " + newZoneIndices[1])
                 blockers.push(players[i])
             }
             else {
@@ -558,6 +546,99 @@ Page {
         }
     }
 
+    /**
+     * Finds coordinates of all players in zone matrix after translation.
+     *  - direction: vector of translation direction
+     *  - positions: current zone matrix coords of all players
+     * Output:
+     *  - new zone matrix coords of all players
+    */
+    function findZonesAfterTranslation(zoneMatrix, direction, positions) {
+        var indexed = []
+        for (var i = 0; i < positions.length; ++i) {
+            indexed.push([i, positions[i]])
+        }
+
+        indexed.sort(function (a, b) {
+            if (direction[0] > 0) {
+                return (a[1][0] > b[1][0]) ? -1 : 1
+            }
+            else if (direction[0] < 0) {
+                return (a[1][0] < b[1][0]) ? -1 : 1
+            }
+            else if (direction[1] > 0) {
+                return (a[1][1] > b[1][1]) ? -1 : 1
+            }
+            else if (direction[1] < 0) {
+                return (a[1][1] < b[1][1]) ? -1 : 1
+            }
+
+            return 0
+        })
+
+        var limit
+        if (direction[0] > 0) {
+            limit = zoneMatrix.length - 1
+        }
+        else if (direction[0] < 0) {
+            limit = 0
+        }
+        else if (direction[1] > 0) {
+            limit = zoneMatrix[0].length - 1
+        }
+        else if (direction[1] < 0) {
+            limit = 0
+        }
+        else {
+            console.assert(false, "Invalid translation direction!")
+        }
+
+        var furthest = []
+        if (direction[0] != null) {
+            for (var i = 0; i < zoneMatrix[0].length; ++i) {
+                furthest.push(limit)
+            }
+        }
+        else {
+            for (var i = 0; i < zoneMatrix.length; ++i) {
+                furthest.push(limit)
+            }
+        }
+
+        var list = []
+        for (var i = 0; i < indexed.length; ++i) {
+            var newPosition = [ indexed[i][1][0], indexed[i][1][1] ]
+            if (direction[0] != null) {
+                newPosition[0] = furthest[newPosition[1]]
+                furthest[newPosition[1]] -= Math.sign(direction[0])
+            }
+            else {
+                newPosition[1] = furthest[newPosition[0]]
+                furthest[newPosition[0]] -= Math.sign(direction[1])
+            }
+
+            console.log(indexed[i][1][0] + ", " + indexed[i][1][1] + " -> " + newPosition[0] + ", " + newPosition[1])
+
+            list.push([indexed[i][0], newPosition])
+        }
+
+        list.sort(function(a, b) {
+            if (a[0] < b[0]) {
+                return -1
+            }
+            else {
+                return 1
+            }
+        })
+
+        var result = []
+        for (var i = 0; i < list.length; ++i) {
+            result.push(list[i][1])
+        }
+
+        return result
+    }
+
     function translate(player, delta) {
         console.log("Trying to translate with delta = [" + delta[0] + ", " + delta[1] + "]")
 
@@ -566,82 +647,32 @@ Page {
         var blockers = []
         var newZones = []
 
-        var sorted = []
+        var positions = []
         for (var i = 0; i < players.length; ++i) {
-            sorted.push(players[i])
+            positions.push(zoneIndices[players[i].currentZone - 1])
         }
 
-        sorted.sort(function (a, b) {
-            if (delta[0] > 0) {
-                return (zoneIndices[a.currentZone - 1][0] > zoneIndices[b.currentZone - 1][0]) ? -1 : 1
-            }
-            else if (delta[0] < 0) {
-                return (zoneIndices[a.currentZone - 1][0] < zoneIndices[b.currentZone - 1][0]) ? -1 : 1
-            }
-            else if (delta[1] > 0) {
-                return (zoneIndices[a.currentZone - 1][1] > zoneIndices[b.currentZone - 1][1]) ? -1 : 1
-            }
-            else if (delta[1] < 0) {
-                return (zoneIndices[a.currentZone - 1][1] < zoneIndices[b.currentZone - 1][1]) ? -1 : 1
-            }
-
-            return 0
-        })
-
-
-        for (var i = 0; i < sorted.length; ++i) {
-            var playerZoneIndices = zoneIndices[sorted[i].currentZone - 1]
-            var newZoneIndices = []
-
-            var j = 0
-            if (delta[0] > 0) {
-                do {
-                    newZoneIndices = [ zoneMatrix.length - 1 - j, playerZoneIndices[1]]
-                    j += 1
-                } while (find(newZones, zoneMatrix[newZoneIndices[0]][newZoneIndices[1]]) != -1 &&
-                         j < zoneMatrix.length)
-            }
-            else if (delta[0] < 0) {
-                do {
-                    newZoneIndices = [ 0 + j, playerZoneIndices[1]]
-                    j += 1
-                } while (find(newZones, zoneMatrix[newZoneIndices[0]][newZoneIndices[1]]) != -1 &&
-                         j < zoneMatrix.length)
-            }
-            else if (delta[1] > 0) {
-                do {
-                    newZoneIndices = [ playerZoneIndices[0], zoneMatrix[0].length - 1 - j]
-                    j += 1
-                } while (find(newZones, zoneMatrix[newZoneIndices[0]][newZoneIndices[1]]) != -1 &&
-                         j < zoneMatrix.length)
-            }
-            else if (delta[1] < 0) {
-                do {
-                    newZoneIndices = [ playerZoneIndices[0], 0 + j]
-                    j += 1
-                } while (find(newZones, zoneMatrix[newZoneIndices[0]][newZoneIndices[1]]) != -1 &&
-                         j < zoneMatrix.length)
-            }
-
-            if (newZoneIndices[0] < 0 || newZoneIndices[0] > zoneMatrix.length - 1 ||
-                newZoneIndices[1] < 0 || newZoneIndices[1] > zoneMatrix[0].length - 1) {
-                console.log("Player " + sorted[i].number + " cannot move from zone " + sorted[i].currentZone + " to zone " + zoneMatrix[newZoneIndices[0]][newZoneIndices[1]])
+        var newPositions = findZonesAfterTranslation(zoneMatrix, delta, positions)
+        for (var i = 0; i < newPositions.length; ++i) {
+            if (newPositions[i][0] < 0 || newPositions[i][0] > zoneMatrix.length - 1 ||
+                newPositions[i][1] < 0 || newPositions[i][1] > zoneMatrix[0].length - 1) {
+                console.log("Player " + i + " cannot move from zone " + players[i].currentZone + " to zone " + newPositions[i][0] + ", " + newPositions[i][1])
                 blockers.push(sorted[i])
             }
             else {
-                console.log("Player " + sorted[i].number + " will move from zone " + sorted[i].currentZone + " to zone " + zoneMatrix[newZoneIndices[0]][newZoneIndices[1]])
-                newZones.push(zoneMatrix[newZoneIndices[0]][newZoneIndices[1]])
+                console.log("Player " + i + " will move from zone " + players[i].currentZone + " to zone " + zoneMatrix[newPositions[i][0]][newPositions[i][1]])
+                newZones.push(zoneMatrix[newPositions[i][0]][newPositions[i][1]])
             }
         }
 
         var translationPossible = (blockers.length == 0)
 
         if (translationPossible) {
-            for (var i = 0; i < sorted.length; ++i) {
-                console.log("Translating player " + sorted.number + " from zone " + sorted[i].currentZone + " to zone " + newZones[i])
+            for (var i = 0; i < players.length; ++i) {
+                console.log("Translating player " + i + " from zone " + players[i].currentZone + " to zone " + newZones[i])
 
-                sorted[i].nextZone = newZones[i]
-                changePlayerState(sorted[i], "MOVING")
+                players[i].nextZone = newZones[i]
+                changePlayerState(players[i], "MOVING")
             }
         }
         else {
@@ -668,6 +699,9 @@ Page {
     function kidnappedChanged(player) {
         return function() {
             if (gameState == "RUNNING") {
+                if (player.kidnapped == false) {
+
+                }
             //     if (player.state == "READY" && player.kidnapped == false) {
             //         playersWantingToChangeAxis += 1
             //         console.log("Players wanting to change axis: " + playersWantingToChangeAxis)
@@ -687,7 +721,7 @@ Page {
             //                     players[i].lastPoseDelta = players[i].y - players[0].y
             //                 }
 
-            //                 applyEffectToLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
+            //                 displayTargetZoneWithLeds(players[i], players[i].targetZone, CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
             //             }
             //         }
             //         else {
@@ -710,8 +744,6 @@ Page {
         return function() {
             if (gameState == "RUNNING") {
                 if (player.state == "READY") {
-                    var zone = map.zones[player.nextZone - 1]
-
                     if (player.currentZone != player.nextZone) {
                         console.log("Player " + player.number + " currentZone: " + player.currentZone + ", nextZone: " + player.nextZone)
                         changePlayerState(player, "MOVING")
@@ -719,6 +751,7 @@ Page {
                     }
 
                     if (!areAllPlayersInState("READY")) {
+                        player.lastPosition = Qt.vector3d(player.x, player.y, player.theta)
                         return
                     }
 
@@ -733,18 +766,15 @@ Page {
                     }
 
                     if (Math.abs(delta) > config.rotationDelta) {
-                        player.lastPosition = Qt.vector3d(player.x, player.y, player.theta)
                         rotate(player, delta)
                     }
 
                     // now check for translation
                     delta = Qt.vector2d(player.x - player.lastPosition.x, player.y - player.lastPosition.y)
                     if (Math.abs(delta.x) > config.translationDelta) {
-                        player.lastPosition = Qt.vector3d(player.x, player.y, player.theta)
                         translate(player, [Math.sign(delta.x), null])
                     }
                     else if (Math.abs(delta.y) > config.translationDelta) {
-                        player.lastPosition = Qt.vector3d(player.x, player.y, player.theta)
                         translate(player, [null, Math.sign(delta.y)])
                     }
                 }
@@ -754,8 +784,6 @@ Page {
                     if (distanceToCenter.dotProduct(distanceToCenter) < 5.0) {
                         trackingGoalReached(player)
                     }
-                    
-                    player.lastPosition = Qt.vector3d(player.x, player.y, player.theta)
                 }
             }
         }

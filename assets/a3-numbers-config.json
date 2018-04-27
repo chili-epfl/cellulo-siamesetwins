@@ -8,7 +8,7 @@
   "maxMoveDistance": 170.0,
   "translationDelta": 20.0,
   "rotationDelta": 30.0,
-  "gameLength": 180.0,
+  "gameLength": 3600.0,
   "data": {
   	"initialZones": [1, 2, 3],
   	"neighborNumbers": [
