@@ -237,11 +237,19 @@ Page {
             newTargetZones.push(choice)
         }
 
+        var positions = []
+        var targets = []
         for (var i = 0; i < players.length; ++i) {
             console.log("Player " + i + " changed target zone from " + players[i].targetZone + " to " + newTargetZones[i])
             players[i].targetZone = newTargetZones[i]
             displayTargetZoneWithLeds(players[i], CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
+
+            positions.push(map.data.zoneIndices[players[i].currentZone - 1])
+            targets.push(map.data.zoneIndices[players[i].targetZone - 1])
         }
+
+        var minMoves = findMimimumMoves(map.data["zoneMatrix"], positions, targets, {}, 1, 10)
+        console.log("Minimum moves: " + minMoves)
     }
 
     function checkZones() {
@@ -409,100 +417,6 @@ Page {
         )
     }
 
-    /**
-     * Finds coordinates in zone matrix where player will find itselt after rotation.
-     * Inputs:
-     *  - center: zone matrix coords of cetner of rotation
-     *  - direction: positive if clockwise, negative if counter-clockwise
-     *  - position: zone matrix coords of player position
-     * Output:
-     *  - zone matrix coords of new player position
-    */
-    function findZoneAfterRotation(center, direction, position) {
-        if (center[0] == position[0] &&
-            center[1] == position[1]) {
-            return [position[0], position[1]]
-        }
-
-        var offset = [
-            position[0] - center[0],
-            position[1] - center[1]
-        ]
-
-        if (offset[0] == 0) {
-            if (offset[1] > 0) {
-                if (direction > 0.0) {
-                    return [ position[0] - 1, position[1] ]
-                }
-                else {
-                    return [ position[0] + 1, position[1] ]
-                }
-            }
-            else {
-                if (direction > 0.0) {
-                    return [ position[0] + 1, position[1] ]
-                }
-                else {
-                    return [ position[0] - 1, position[1] ]
-                }
-            }
-        }
-        else if (offset[1] == 0) {
-            if (offset[0] > 0) {
-                if (direction > 0.0) {
-                    return [ position[0], position[1] + 1 ]
-                }
-                else {
-                    return [ position[0], position[1] - 1 ]
-                }
-            }
-            else {
-                if (direction > 0.0) {
-                    return [ position[0], position[1] - 1 ]
-                }
-                else {
-                    return [ position[0], position[1] + 1 ]
-                }
-            }
-        }
-        else if (offset[0] > 0) {
-            if (offset[1] > 0) {
-                if (direction > 0.0) {
-                    return [ position[0] - 1, position[1] + 1 ]
-                }
-                else {
-                    return [ position[0] + 1, position[1] - 1 ]
-                }
-            }
-            else {
-                if (direction > 0.0) {
-                    return [ position[0] + 1, position[1] + 1 ]
-                }
-                else {
-                    return [ position[0] - 1, position[1] - 1 ]
-                }
-            }
-        }
-        else {                    
-            if (offset[1] > 0) {
-                if (direction > 0.0) {
-                    return [ position[0] - 1, position[1] - 1 ]
-                }
-                else {
-                    return [ position[0] + 1, position[1] + 1 ]
-                }
-            }
-            else {
-                if (direction > 0.0) {
-                    return [ position[0] + 1, position[1] - 1 ]
-                }
-                else {
-                    return [ position[0] - 1, position[1] + 1 ]
-                }
-            }
-        }
-    }
-
     function rotate(player, delta) {
         console.log("Trying to rotate around player " + player.number + " with delta = " + delta)
 
@@ -544,99 +458,6 @@ Page {
                 changePlayerState(blockers[i], "BLOCKING")
             }
         }
-    }
-
-    /**
-     * Finds coordinates of all players in zone matrix after translation.
-     *  - direction: vector of translation direction
-     *  - positions: current zone matrix coords of all players
-     * Output:
-     *  - new zone matrix coords of all players
-    */
-    function findZonesAfterTranslation(zoneMatrix, direction, positions) {
-        var indexed = []
-        for (var i = 0; i < positions.length; ++i) {
-            indexed.push([i, positions[i]])
-        }
-
-        indexed.sort(function (a, b) {
-            if (direction[0] > 0) {
-                return (a[1][0] > b[1][0]) ? -1 : 1
-            }
-            else if (direction[0] < 0) {
-                return (a[1][0] < b[1][0]) ? -1 : 1
-            }
-            else if (direction[1] > 0) {
-                return (a[1][1] > b[1][1]) ? -1 : 1
-            }
-            else if (direction[1] < 0) {
-                return (a[1][1] < b[1][1]) ? -1 : 1
-            }
-
-            return 0
-        })
-
-        var limit
-        if (direction[0] > 0) {
-            limit = zoneMatrix.length - 1
-        }
-        else if (direction[0] < 0) {
-            limit = 0
-        }
-        else if (direction[1] > 0) {
-            limit = zoneMatrix[0].length - 1
-        }
-        else if (direction[1] < 0) {
-            limit = 0
-        }
-        else {
-            console.assert(false, "Invalid translation direction!")
-        }
-
-        var furthest = []
-        if (direction[0] != null) {
-            for (var i = 0; i < zoneMatrix[0].length; ++i) {
-                furthest.push(limit)
-            }
-        }
-        else {
-            for (var i = 0; i < zoneMatrix.length; ++i) {
-                furthest.push(limit)
-            }
-        }
-
-        var list = []
-        for (var i = 0; i < indexed.length; ++i) {
-            var newPosition = [ indexed[i][1][0], indexed[i][1][1] ]
-            if (direction[0] != null) {
-                newPosition[0] = furthest[newPosition[1]]
-                furthest[newPosition[1]] -= Math.sign(direction[0])
-            }
-            else {
-                newPosition[1] = furthest[newPosition[0]]
-                furthest[newPosition[0]] -= Math.sign(direction[1])
-            }
-
-            console.log(indexed[i][1][0] + ", " + indexed[i][1][1] + " -> " + newPosition[0] + ", " + newPosition[1])
-
-            list.push([indexed[i][0], newPosition])
-        }
-
-        list.sort(function(a, b) {
-            if (a[0] < b[0]) {
-                return -1
-            }
-            else {
-                return 1
-            }
-        })
-
-        var result = []
-        for (var i = 0; i < list.length; ++i) {
-            result.push(list[i][1])
-        }
-
-        return result
     }
 
     function translate(player, delta) {
@@ -757,25 +578,25 @@ Page {
 
                     // first check for rotation
                     // prevent issue when player.theta wraps around
-                    var delta = player.theta - player.lastPosition.z
-                    if (delta > 180.0) {
-                        delta -= 360.0
+                    var rotation = player.theta - player.lastPosition.z
+                    if (rotation > 180.0) {
+                        rotation -= 360.0
                     }
-                    else if (delta < -180.0) {
-                        delta += 360.0
+                    else if (rotation < -180.0) {
+                        rotation += 360.0
                     }
 
-                    if (Math.abs(delta) > config.rotationDelta) {
-                        rotate(player, delta)
+                    if (Math.abs(rotation) > config.rotationDelta) {
+                        rotate(player, Math.sign(rotation))
                     }
 
                     // now check for translation
-                    delta = Qt.vector2d(player.x - player.lastPosition.x, player.y - player.lastPosition.y)
-                    if (Math.abs(delta.x) > config.translationDelta) {
-                        translate(player, [Math.sign(delta.x), null])
+                    var translation = Qt.vector2d(player.x - player.lastPosition.x, player.y - player.lastPosition.y)
+                    if (Math.abs(translation.x) > config.translationDelta) {
+                        translate(player, [Math.sign(translation.x), 0])
                     }
-                    else if (Math.abs(delta.y) > config.translationDelta) {
-                        translate(player, [null, Math.sign(delta.y)])
+                    else if (Math.abs(translation.y) > config.translationDelta) {
+                        translate(player, [0, Math.sign(translation.y)])
                     }
                 }
                 else if (player.state == "MOVING") {
@@ -819,5 +640,287 @@ Page {
         
         timeRemainingText.text = null
         startStopButton.text = "Start game"
+    }
+
+    /**
+     * Finds coordinates of all players in zone matrix after translation.
+     *  - direction: vector of translation direction
+     *  - positions: current zone matrix coords of all players
+     * Output:
+     *  - new zone matrix coords of all players
+    */
+    function findZonesAfterTranslation(zoneMatrix, direction, positions) {
+        var indexed = []
+        for (var i = 0; i < positions.length; ++i) {
+            indexed.push([i, positions[i]])
+        }
+
+        indexed.sort(function (a, b) {
+            if (direction[0] > 0) {
+                return (a[1][0] > b[1][0]) ? -1 : 1
+            }
+            else if (direction[0] < 0) {
+                return (a[1][0] < b[1][0]) ? -1 : 1
+            }
+            else if (direction[1] > 0) {
+                return (a[1][1] > b[1][1]) ? -1 : 1
+            }
+            else if (direction[1] < 0) {
+                return (a[1][1] < b[1][1]) ? -1 : 1
+            }
+
+            return 0
+        })
+
+        var limit
+        if (direction[0] > 0) {
+            limit = zoneMatrix.length - 1
+        }
+        else if (direction[0] < 0) {
+            limit = 0
+        }
+        else if (direction[1] > 0) {
+            limit = zoneMatrix[0].length - 1
+        }
+        else if (direction[1] < 0) {
+            limit = 0
+        }
+        else {
+            console.assert(false, "Invalid translation direction!")
+        }
+
+        var furthest = []
+        if (direction[0] != 0) {
+            for (var i = 0; i < zoneMatrix[0].length; ++i) {
+                furthest.push(limit)
+            }
+        }
+        else {
+            for (var i = 0; i < zoneMatrix.length; ++i) {
+                furthest.push(limit)
+            }
+        }
+
+        var list = []
+        for (var i = 0; i < indexed.length; ++i) {
+            var newPosition = [ indexed[i][1][0], indexed[i][1][1] ]
+            if (direction[0] != 0) {
+                newPosition[0] = furthest[newPosition[1]]
+                furthest[newPosition[1]] -= Math.sign(direction[0])
+            }
+            else {
+                newPosition[1] = furthest[newPosition[0]]
+                furthest[newPosition[0]] -= Math.sign(direction[1])
+            }
+
+            console.log(indexed[i][1][0] + ", " + indexed[i][1][1] + " -> " + newPosition[0] + ", " + newPosition[1] + " (dir: " + direction[0] + ", " + direction[1] + ")")
+
+            list.push([indexed[i][0], newPosition])
+        }
+
+        list.sort(function(a, b) {
+            if (a[0] < b[0]) {
+                return -1
+            }
+            else {
+                return 1
+            }
+        })
+
+        var result = []
+        for (var i = 0; i < list.length; ++i) {
+            result.push(list[i][1])
+        }
+
+        return result
+    }
+
+    /**
+     * Finds coordinates in zone matrix where player will find itselt after rotation.
+     * Inputs:
+     *  - center: zone matrix coords of cetner of rotation
+     *  - direction: positive if clockwise, negative if counter-clockwise
+     *  - position: zone matrix coords of player position
+     * Output:
+     *  - zone matrix coords of new player position
+    */
+    function findZoneAfterRotation(center, direction, position) {
+        if (center[0] == position[0] &&
+            center[1] == position[1]) {
+            return [position[0], position[1]]
+        }
+
+        var offset = [
+            position[0] - center[0],
+            position[1] - center[1]
+        ]
+
+        if (offset[0] == 0) {
+            if (offset[1] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0] - 1, position[1] ]
+                }
+                else {
+                    return [ position[0] + 1, position[1] ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0] + 1, position[1] ]
+                }
+                else {
+                    return [ position[0] - 1, position[1] ]
+                }
+            }
+        }
+        else if (offset[1] == 0) {
+            if (offset[0] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0], position[1] + 1 ]
+                }
+                else {
+                    return [ position[0], position[1] - 1 ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0], position[1] - 1 ]
+                }
+                else {
+                    return [ position[0], position[1] + 1 ]
+                }
+            }
+        }
+        else if (offset[0] > 0) {
+            if (offset[1] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0] - 1, position[1] + 1 ]
+                }
+                else {
+                    return [ position[0] + 1, position[1] - 1 ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0] + 1, position[1] + 1 ]
+                }
+                else {
+                    return [ position[0] - 1, position[1] - 1 ]
+                }
+            }
+        }
+        else {                    
+            if (offset[1] > 0) {
+                if (direction > 0.0) {
+                    return [ position[0] - 1, position[1] - 1 ]
+                }
+                else {
+                    return [ position[0] + 1, position[1] + 1 ]
+                }
+            }
+            else {
+                if (direction > 0.0) {
+                    return [ position[0] + 1, position[1] - 1 ]
+                }
+                else {
+                    return [ position[0] - 1, position[1] + 1 ]
+                }
+            }
+        }
+    }
+
+    function computePositionHash(positions) {
+        var hash = ""
+        for (var i = 0; i < positions.length; ++i) {
+            hash += String(positions[i][0]) + String(positions[i][1])
+        }
+
+        return hash
+    }
+
+    function findMimimumMoves(zoneMatrix, positions, targets, memo, depth, limit) {
+        console.log("Depth: " + depth)
+
+        if (depth == limit) {
+            return limit
+        }
+
+        var rotations = [-1, 1]
+        var translations = [
+            [-1,  0],
+            [ 1,  0],
+            [ 0, -1],
+            [ 0,  1]
+        ]
+
+        for (var i = 0; i < positions.length; ++i) {
+            console.log("Player " + i + " position: " + positions[i][0] + ",  " + positions[i][1])
+            memo[computePositionHash(positions)] = 1
+        }
+
+        var futures = []
+        for (var i = 0; i < rotations.length; ++i) {
+            for (var j = 0; j < positions.length; ++j) {
+                var nextPositions = []
+                for (var k = 0; k < positions.length; ++k) {
+                    nextPositions.push(findZoneAfterRotation(positions[j], rotations[i], positions[k]))
+                }
+
+                if (memo[computePositionHash(nextPositions)] == null) {
+                    futures.push(nextPositions)
+                }
+            }
+        }
+
+        for (var i = 0; i < translations.length; ++i) {
+            var nextPositions = findZonesAfterTranslation(zoneMatrix, translations[i], positions)
+            if (memo[computePositionHash(nextPositions)] == null) {
+                futures.push(nextPositions)
+            }
+        }
+
+        var valid = []
+        for (var i = 0; i < futures.length; ++i) {
+            var accept = true
+            var found = true
+
+            console.log("Future position " + i + ": ")
+            for (var j = 0; j < futures[i].length; ++j) {
+                console.log("Player " + j + ": " + futures[i][j][0] + ", " + futures[i][j][1])
+
+                if (futures[i][j][0] >= 0 && futures[i][j][0] < zoneMatrix.length &&
+                    futures[i][j][1] >= 0 && futures[i][j][1] < zoneMatrix[0].length) {
+                    if (futures[i][j][0] != targets[j][0] || futures[i][j][1] != targets[j][1]) {
+                        found = false
+                    }
+                }
+                else {
+                    accept = false
+                    found = false
+                }
+            }
+
+            if (found) {
+                console.log("Found!")
+                return depth
+            }
+            else if (accept) {
+                console.log("Accepted")
+                valid.push(futures[i])
+            }
+            else {
+                console.log("Rejected")
+            }
+        }
+
+        console.log("")
+
+        var next = []
+        for (var i = 0; i < valid.length; ++i) {
+            next.push(findMimimumMoves(zoneMatrix, valid[i], targets, memo, depth + 1, limit))
+            console.log("next[" + i + "]: " + next[i])
+        }
+
+        return (Math.min.apply(Math, next))
     }
 }
