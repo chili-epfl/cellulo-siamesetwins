@@ -78,6 +78,7 @@ Page {
 
         game.map = map 
         game.config = config
+        game.mapChanged = true
     }
 
     GridLayout {
