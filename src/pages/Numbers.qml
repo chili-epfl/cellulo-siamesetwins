@@ -70,6 +70,7 @@ Page {
             "IDLE"
         ],        
         "CELEBRATING": [
+            "READY",
             "MOVING",
             "IDLE"
         ]
@@ -258,7 +259,7 @@ Page {
             targets.push(map.data.zoneIndices[players[i].targetZone - 1])
         }
 
-        movesRemaining = findMimimumMoves(map.data["zoneMatrix"], positions, targets, {}, 0, 10)
+        movesRemaining = findMimimumMoves(map.data["zoneMatrix"], positions, targets, 8)
         console.log("Minimum moves: " + movesRemaining)
     }
 
@@ -856,13 +857,8 @@ Page {
         return hash
     }
 
-    function findMimimumMoves(zoneMatrix, positions, targets, memo, depth, limit) {
-        console.log("Depth: " + depth)
-
-        if (depth == limit) {
-            return limit
-        }
-
+    function findMimimumMoves(zoneMatrix, positions, targets, limit) {
+        var memo = []
         var rotations = [-1, 1]
         var translations = [
             [-1,  0],
@@ -871,77 +867,96 @@ Page {
             [ 0,  1]
         ]
 
-        if (depth == 0)
+        var initialPositions = []
         for (var i = 0; i < positions.length; ++i) {
-            console.log("Player " + i + " position: " + positions[i][0] + ",  " + positions[i][1])
-            memo[computePositionHash(positions)] = depth
+            memo[computePositionHash(positions)] = true
+            initialPositions.push(positions[i])
         }
 
-        var futures = []
-        for (var i = 0; i < rotations.length; ++i) {
-            for (var j = 0; j < positions.length; ++j) {
-                var nextPositions = []
-                for (var k = 0; k < positions.length; ++k) {
-                    nextPositions.push(findZoneAfterRotation(positions[j], rotations[i], positions[k]))
+        var tree = [ [initialPositions] ]
+        for (var d = 0; d < limit; ++d) {
+            console.log("Depth: " + d)
+
+            tree.push([])
+
+            // compute possible next positions for all nodes at depth d
+            for (var n = 0; n < tree[d].length; ++n) {
+                var current = tree[d][n]
+                var future = []
+
+                for (var i = 0; i < current.length; ++i) {
+                    console.log("Player " + i + " current position: " + current[i][0] + ",  " + current[i][1])
                 }
 
-                var hash = computePositionHash(nextPositions)
-                if (memo[hash] == null || memo[hash] > depth) {
-                    memo[hash] = depth
-                    futures.push(nextPositions)
-                }
-            }
-        }
+                // store rotations
+                for (var i = 0; i < rotations.length; ++i) {
+                    for (var j = 0; j < current.length; ++j) {
+                        var next = []
+                        for (var k = 0; k < current.length; ++k) {
+                            next.push(findZoneAfterRotation(current[j], rotations[i], current[k]))
+                        }
 
-        for (var i = 0; i < translations.length; ++i) {
-            var nextPositions = findZonesAfterTranslation(zoneMatrix, translations[i], positions)
-            if (memo[computePositionHash(nextPositions)] == null) {
-                futures.push(nextPositions)
-            }
-        }
+                        for (var t = 0; t < next.length; ++t) {
+                            console.log(current[t][0] + ", " + current[t][1] + " -> "  + next[t][0] + ", " + next[t][1] + " (rot: " + rotations[i] + ")")
+                        }
 
-        var valid = []
-        for (var i = 0; i < futures.length; ++i) {
-            var accept = true
-            var found = true
-
-            console.log("Future position " + i + ": ")
-            for (var j = 0; j < futures[i].length; ++j) {
-                console.log("Player " + j + ": " + futures[i][j][0] + ", " + futures[i][j][1])
-
-                if (futures[i][j][0] >= 0 && futures[i][j][0] < zoneMatrix.length &&
-                    futures[i][j][1] >= 0 && futures[i][j][1] < zoneMatrix[0].length) {
-                    if (futures[i][j][0] != targets[j][0] || futures[i][j][1] != targets[j][1]) {
-                        found = false
+                        var hash = computePositionHash(next)
+                        if (!(hash in memo)) {
+                            memo[hash] = true
+                            future.push(next)
+                        }
                     }
                 }
-                else {
-                    accept = false
-                    found = false
+
+                // store translations
+                for (var i = 0; i < translations.length; ++i) {
+                    var next = findZonesAfterTranslation(zoneMatrix, translations[i], current)
+                    var hash = computePositionHash(next)
+                    if (!(hash in memo)) {
+                        future.push(next)
+                    }
+                }
+
+                // filter for goal/validity
+                var valid = []
+                for (var i = 0; i < future.length; ++i) {
+                    var accept = true
+                    var found = true
+
+                    console.log("Future positions " + i + ": ")
+                    for (var j = 0; j < future[i].length; ++j) {
+                        console.log("Player " + j + ": " + future[i][j][0] + ", " + future[i][j][1])
+
+                        if (future[i][j][0] >= 0 && future[i][j][0] < zoneMatrix.length &&
+                            future[i][j][1] >= 0 && future[i][j][1] < zoneMatrix[0].length) {
+                            if (future[i][j][0] != targets[j][0] || future[i][j][1] != targets[j][1]) {
+                                found = false
+                            }
+                        }
+                        else {
+                            accept = found = false
+                        }
+                    }
+
+                    if (found) {
+                        console.log("Found!")
+                        return d + 1
+                    }
+                    else if (accept) {
+                        console.log("Accepted")
+                        valid.push(future[i])
+                    }
+                    else {
+                        console.log("Rejected")
+                    }
+                }
+
+                for (var i = 0; i < valid.length; ++i) {
+                    tree[d + 1].push(valid[i])
                 }
             }
-
-            if (found) {
-                console.log("Found!")
-                return depth + 1
-            }
-            else if (accept) {
-                console.log("Accepted")
-                valid.push(futures[i])
-            }
-            else {
-                console.log("Rejected")
-            }
         }
 
-        console.log("")
-
-        var next = []
-        for (var i = 0; i < valid.length; ++i) {
-            next.push(findMimimumMoves(zoneMatrix, valid[i], targets, memo, depth + 1, limit))
-            console.log("next[" + i + "]: " + next[i])
-        }
-
-        return (Math.min.apply(Math, next))
+        return limit + 1
     }
 }
