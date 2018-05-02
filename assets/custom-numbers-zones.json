@@ -1,0 +1,65 @@
+[
+  {        
+            "name": "number1a",
+            "type": "CIRCLEINNER",
+            "x": 65,
+            "y": 65,
+            "r": 45
+  },
+  {        
+            "name": "number2",
+            "type": "CIRCLEINNER",
+            "x": 210,
+            "y": 65,
+            "r": 45
+  },
+  {        
+            "name": "number1b",
+            "type": "CIRCLEINNER",
+            "x": 355,
+            "y": 65,
+            "r": 45
+  },
+  {        
+            "name": "number3",
+            "type": "CIRCLEINNER",
+            "x": 65,
+            "y": 210,
+            "r": 45
+  },
+  {        
+            "name": "number6",
+            "type": "CIRCLEINNER",
+            "x": 210,
+            "y": 210,
+            "r": 45
+  },
+  {        
+            "name": "number4",
+            "type": "CIRCLEINNER",
+            "x": 355,
+            "y": 210,
+            "r": 45
+  },
+  {        
+            "name": "number1c",
+            "type": "CIRCLEINNER",
+            "x": 65,
+            "y": 355,
+            "r": 45
+  },
+  {        
+            "name": "number5",
+            "type": "CIRCLEINNER",
+            "x": 210,
+            "y": 355,
+            "r": 45
+  },
+  {        
+            "name": "number1d",
+            "type": "CIRCLEINNER",
+            "x": 355,
+            "y": 355,
+            "r": 45
+  }
+]

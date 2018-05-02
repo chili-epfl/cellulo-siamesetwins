@@ -40,7 +40,6 @@ Page {
         visible: false
 
         property real linearVelocity
-        property real maxMoveDistance
         property real translationDelta
         property real gameLength
     }
@@ -62,14 +61,12 @@ Page {
             console.log("Loaded zone " + map.zones[i].name + " with center " + map.zones[i].x + ", " + map.zones[i].y)
         }
 
-        config.maxMoveDistance = config["maxMoveDistance"]
         config.linearVelocity = config["linearVelocity"]
         config.angularVelocity = config["angularVelocity"]
         config.translationDelta = config["translationDelta"]
         config.rotationDelta = config["rotationDelta"]
         config.gameLength = config["gameLength"]
 
-        maxMoveDistanceInput.text = config.maxMoveDistance
         linearVelocityInput.text = config.linearVelocity
         angularVelocityInput.text = config.angularVelocity
         translationDeltaInput.text = config.translationDelta
@@ -106,26 +103,6 @@ Page {
             }
             textRole: "text"
             onCurrentIndexChanged: loadMap(mapListItems.get(currentIndex).name)
-        }
-
-
-        Text {
-            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-            text: qsTr("Maximum movement distance (in mm): ")
-            font.bold: true
-        }
-
-        TextInput {
-            id: maxMoveDistanceInput
-            inputMethodHints: Qt.ImhDigitsOnly
-            Layout.minimumWidth: 40
-            Layout.preferredWidth: 40
-
-            validator: IntValidator { bottom: 5; top: 1000; }
-
-            onEditingFinished: {
-                game.config.maxMoveDistance = parseInt(text)
-            }
         }
 
         Text {
@@ -168,7 +145,7 @@ Page {
 
         Text {
             Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-            text: qsTr("Required pose delta for leading (in mm): ")
+            text: qsTr("Required translation delta for moving (in mm): ")
             font.bold: true
         }
 
@@ -183,6 +160,12 @@ Page {
             onEditingFinished: {
                 game.config.translationDelta = parseInt(text)
             }
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            text: qsTr("Required rotation delta for moving (in deg): ")
+            font.bold: true
         }
 
         TextInput {

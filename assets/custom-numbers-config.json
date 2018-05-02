@@ -1,0 +1,50 @@
+{
+  "physicalWidth": 420.0,
+  "physicalHeight": 420.0,
+  "linearVelocity": 200.0,
+  "angularVelocity": 1.5,
+  "minPlayers": 2,
+  "maxPlayers": 2,
+  "translationDelta": 30.0,
+  "rotationDelta": 30.0,
+  "gameLength": 3600.0,
+  "data": {
+    "logicalZoneCount": 6,
+    "zoneJsonIndex": {
+      "number1a": 0,
+      "number1b": 2,
+      "number1c": 6,
+      "number1d": 8,
+      "number2": 1,
+      "number3": 3,
+      "number4": 5,
+      "number5": 7,
+      "number6": 4
+    },
+    "zoneMatrixIndices": {
+      "number1a": [0, 0],
+      "number1b": [2, 0],
+      "number1c": [0, 2],
+      "number1d": [2, 2],
+      "number2": [1, 0],
+      "number3": [0, 1],
+      "number4": [2, 1],
+      "number5": [1, 2],
+      "number6": [1, 1]
+    },
+    "zoneMatrix": [
+      [1, 3, 1],
+      [2, 6, 5],
+      [1, 4, 1]
+    ],
+    "zoneNameMatrix": [
+      ["number1a", "number3", "number1c"],
+      ["number2" , "number6", "number5" ],
+      ["number1b", "number4", "number1d"]
+    ],
+    "initialZones": [
+      "number1a",
+      "number1d"
+    ]
+  }
+}
