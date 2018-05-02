@@ -9,8 +9,6 @@ import QMLCache 1.0
 import QMLBluetoothExtras 1.0
 import QMLRos 1.0
 
-import ch.epfl.chili.fileio 1.0
-
 import "./pages"
 
 ApplicationWindow {

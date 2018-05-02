@@ -8,8 +8,7 @@ import QtQuick.Layouts 1.3
 import Cellulo 1.0
 import QMLCache 1.0
 import QMLBluetoothExtras 1.0
-
-import ch.epfl.chili.fileio 1.0
+import QMLFileIo 1.0
 
 Page {
     id: root
@@ -17,7 +16,7 @@ Page {
 
     property var game
 
-    FileIo {
+    QMLFileIo {
         id: fileIo
         visible: false
     }
@@ -97,9 +96,8 @@ Page {
             currentIndex: 0
             model: ListModel {
                 id: mapListItems
-                ListElement { text: "Numbers (A3, 2-3 players)"; name: "a3-numbers"; }
-                ListElement { text: "Easymaze (A3, 2 players)"; name: "a3-easymaze"; }
-                ListElement { text: "Colors (A4, 2 players)"; name: "a4-colors"; }
+                ListElement { text: "Numbers (A3, 2 players)"; name: "a3-numbers"; }
+                ListElement { text: "Numbers (Custom, 2 players)"; name: "custom-numbers"; }
             }
             textRole: "text"
             onCurrentIndexChanged: loadMap(mapListItems.get(currentIndex).name)
