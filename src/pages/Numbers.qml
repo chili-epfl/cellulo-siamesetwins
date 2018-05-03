@@ -981,6 +981,7 @@ Page {
     }
 
     function findMimimumMoves(zoneMatrix, positions, targets, limit) {
+        var path = []
         var memo = []
         var rotations = [-1, 1]
         var translations = [
@@ -996,13 +997,13 @@ Page {
             initialPositions.push(positions[i])
         }
 
-        var tree = [ [initialPositions] ]
+        var tree = [ [ [initialPositions, -1] ] ]
         for (var d = 0; d < limit; ++d) {
             tree.push([])
 
             // compute possible next positions for all nodes at depth d
             for (var n = 0; n < tree[d].length; ++n) {
-                var current = tree[d][n]
+                var current = tree[d][n][0]
                 var future = []
 
                 // store rotations
@@ -1049,6 +1050,21 @@ Page {
                     }
 
                     if (found) {
+                        var path = [ future[i] ]
+                        var index = tree[d][n][1]
+                        for (var level = d; level > 0; --level) {
+                            path.push(tree[level][index][0])
+                            index = tree[level][index][1]
+                        }
+
+                        console.log("Path to goal:")
+                        for (var step = path.length - 1; step >= 0; --step) {
+                            console.log(path.length - step)
+
+                            for (var p = 0; p < players.length; ++p) {
+                                console.log("[" + path[step][p][0] + ", " + path[step][p][1] + "]")
+                            }
+                        }
                         return d + 1
                     }
                     else if (accept) {
@@ -1057,7 +1073,7 @@ Page {
                 }
 
                 for (var i = 0; i < valid.length; ++i) {
-                    tree[d + 1].push(valid[i])
+                    tree[d + 1].push([valid[i], n])
                 }
             }
         }
