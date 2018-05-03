@@ -60,17 +60,21 @@ Page {
             console.log("Loaded zone " + map.zones[i].name + " with center " + map.zones[i].x + ", " + map.zones[i].y)
         }
 
+        config.recordSession = config["recordSession"]
         config.linearVelocity = config["linearVelocity"]
         config.angularVelocity = config["angularVelocity"]
         config.translationDelta = config["translationDelta"]
         config.rotationDelta = config["rotationDelta"]
         config.gameLength = config["gameLength"]
 
+        recordSessionCheckBox.checked = config.recordSession
         linearVelocityInput.text = config.linearVelocity
         angularVelocityInput.text = config.angularVelocity
         translationDeltaInput.text = config.translationDelta
         rotationDeltaInput.text = config.rotationDelta
         gameLengthInput.text = config.gameLength
+
+        config.bagName = name
 
         game.map = map 
         game.config = config
@@ -101,6 +105,20 @@ Page {
             }
             textRole: "text"
             onCurrentIndexChanged: loadMap(mapListItems.get(currentIndex).name)
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            text: qsTr("Record session?")
+            font.bold: true
+        }
+
+        CheckBox {
+            id: recordSessionCheckBox
+            checked: false
+            onCheckedChanged: {
+                game.config.recordSession = checked
+            }
         }
 
         Text {

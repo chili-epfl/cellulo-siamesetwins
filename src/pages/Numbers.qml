@@ -8,6 +8,8 @@ import QtQuick.Layouts 1.3
 import Cellulo 1.0
 import QMLCache 1.0
 import QMLBluetoothExtras 1.0
+import QMLRos 1.0
+import QMLRosRecorder 1.0
 
 Page {
     id: root
@@ -16,9 +18,11 @@ Page {
     property var config
     property var map
     property var players
+    property real timeLeft
     property bool mapChanged: false
 
     property string gameState: "IDLE"
+    property int movesRequired: 0
     property int movesRemaining: 0
     property int score
     property var horizontalColor: "#0000FF"
@@ -84,6 +88,14 @@ Page {
     CelluloZoneEngine {
         id: zoneEngine
         active: false
+    }
+
+    RosNode {
+        id: rosNode
+    }
+
+    RosRecorder {
+        id: rosRecorder
     }
 
     Rectangle {
@@ -157,12 +169,13 @@ Page {
                 startTime = new Date().getTime()
             }
 
-            var timeLeft = config.gameLength - 1e-3 * (new Date().getTime() - startTime)
+            timeLeft = config.gameLength - 1e-3 * (new Date().getTime() - startTime)
 
             if (timeLeft <= 0) {
                 timeRemainingText.text = "Game Over!"
                 stop()
             } else {
+                publishGameInfo("time_remaining", timeLeft)
                 timeRemainingText.text = "Time left: " + timeLeft.toFixed(2)
             }
         }
@@ -255,9 +268,71 @@ Page {
         }
 
         changeGameState("IDLE")
+
+        rosRecorder.stopRecording(config.bagName)
         
         timeRemainingText.text = null
         startStopButton.text = "Start game"
+    }
+
+    function publishPlayerInfo(player, subject, value) {
+        if (config.recordSession && rosNode.status == "Running") {
+            rosNode.publish("siamese_twins/player" + player.number + "/" + subject, player.macAddr, value)
+        }
+    }
+
+    function publishGameInfo(subject, value) {
+        if (config.recordSessionn && rosNode.status == "Running") {
+            rosNode.publish("siamese_twins/" + subject, "NumbersGame", value)
+        }
+    }
+
+    function initializeRos() {
+        if (rosNode.status == "Idle") {
+            rosNode.startNode()
+        }
+
+        if (rosRecorder.status == "Idle") {
+            rosRecorder.startNode()
+            rosRecorder.topicsToRecord = [
+                "/audio/audio",
+                "/usb_cam/image_raw/compressed",
+                "/siamese_twins/state",
+                "/siamese_twins/score",
+                "/siamese_twins/moves_required",
+                "/siamese_twins/moves_remaining",
+                "/siamese_twins/player0/state",
+                "/siamese_twins/player0/pose",
+                "/siamese_twins/player0/kidnapped",
+                "/siamese_twins/player0/target_zone",
+                "/siamese_twins/player0/current_zone",
+                "/siamese_twins/player0/next_zone",
+                "/siamese_twins/player0/translation_attempted",
+                "/siamese_twins/player0/translation_succeeded",
+                "/siamese_twins/player0/translation_failed",
+                "/siamese_twins/player0/rotation_attempted",
+                "/siamese_twins/player0/rotation_succeeded",
+                "/siamese_twins/player0/rotation_failed",
+            ]
+        }
+
+        rosRecorder.startRecording(config.bagName)
+
+        publishGameInfo("state", gameState)
+        publishGameInfo("score", score)
+        publishGameInfo("moves_required", movesRequired)
+        publishGameInfo("moves_remaining", movesRemaining)
+        publishGameInfo("time_remaining", timeLeft)
+
+        for (var i = 0; i < players.length; ++i) {
+            var player = players[i]
+            publishPlayerInfo(player, "state", player.state)
+            publishPlayerInfo(player, "pose", Qt.vector3d(player.x, player.y, player.theta))
+            publishPlayerInfo(player, "kidnapped", player.kidnapped)
+            publishPlayerInfo(player, "target_zone", player.targetZone)
+            publishPlayerInfo(player, "current_zone", map.data.zoneMatrix[player.currentZone[0]][player.currentZone[1]])
+            publishPlayerInfo(player, "next_zone", map.data.zoneMatrix[player.nextZone[0]][player.nextZone[1]])
+        }
     }
 
     function changeGameState(newState) {
@@ -266,6 +341,8 @@ Page {
 
         console.assert(find(gameTransitions[gameState], newState) != -1)
         console.log("Game state changed from " + gameState + " to " + newState)
+
+        publishGameInfo("state", gameState)
 
         if (newState == "INIT") {
             if (mapChanged) {
@@ -283,13 +360,17 @@ Page {
                 players[i].poseChanged.connect(poseChanged(players[i]))
                 players[i].ledColor = animationColors[i]
 
-                changePlayerState(players[i], "INIT")
-
                 zoneEngine.addNewClient(players[i])
+
+                changePlayerState(players[i], "INIT")
             }
         }
         else if (newState == "RUNNING") {
             gameTimer.start()
+
+            if (config.recordSession) {
+                initializeRos()
+            }
         }
         else if (newState == "IDLE") {
             gameTimer.stop()
@@ -309,6 +390,8 @@ Page {
         console.assert(find(playerTransitions[player.state], newState) != -1, "Cannot transition from " + player.state + " to " + newState)
 
         player.state = newState
+
+        publishPlayerInfo(player, "state", player.state)
 
         switch (player.state) {
             case "IDLE":
@@ -348,7 +431,7 @@ Page {
 
             case "MOVING":
             player.setCasualBackdriveAssistEnabled(false)
-            moveToZone(player, player.nextZone)
+            moveToNextZone(player)
 
             if (gameState == "RUNNING") {
                 displayTargetZoneWithLeds(player, CelluloBluetoothEnums.VisualEffectConstSingle, player.ledColor)
@@ -377,9 +460,11 @@ Page {
                 for (var i = 0; i < players.length; ++i) {
                     changePlayerState(players[i], "CELEBRATING")
                 }
+
+                publishGameInfo("score", score)
             }
             else if (movesRemaining == 0) {
-                stop()
+                chooseNewTargetZones()
             }
         }
     }
@@ -431,14 +516,19 @@ Page {
             console.log("Player " + i + " changed target zone from " + players[i].targetZone + " to " + newTargetZones[i])
             players[i].targetZone = newTargetZones[i]
             displayTargetZoneWithLeds(players[i], CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
+            publishPlayerInfo(players[i], "target_zone", players[i].targetZone)
 
             console.assert(players[i].currentZone != undefined, "Cannot compute moves remaining for players with unknown current zones!")
             positions.push(players[i].currentZone)
             targets.push(players[i].targetZone)
         }
 
-        movesRemaining = findMimimumMoves(map.data.zoneMatrix, positions, targets, 8)
-        console.log("Minimum moves: " + movesRemaining)
+        movesRequired = findMimimumMoves(map.data.zoneMatrix, positions, targets, 8)
+        movesRemaining = movesRequired
+        console.log("Minimum moves: " + movesRequired)
+
+        publishGameInfo("moves_required", movesRequired)
+        publishGameInfo("moves_remaining", movesRemaining)
     }
 
     function areAllPlayersInTargetZone() {
@@ -498,7 +588,7 @@ Page {
         positionResetTimer.restart()
     }
 
-    function moveToZone(player, indices) {
+    function moveToNextZone(player) {
         var zoneName = map.data.zoneNameMatrix[player.nextZone[0]][player.nextZone[1]]
         var zone = map.zones[map.data.zoneJsonIndex[zoneName]]
         player.setGoalPosition(
@@ -520,18 +610,16 @@ Page {
                 }
             }
 
+            publishPlayerInfo(player, "current_zone", map.data.zoneMatrix[player.currentZone[0]][player.currentZone[1]])
+
             console.log("Player " + player.number + (value ? " entered " : " left ") + zone.name)
-            if (gameState == "RUNNING" && areAllPlayersInTargetZone()) {
-                score += 1
-                for (var i = 0; i < players.length; ++i) {
-                    changePlayerState(players[i], "CELEBRATING")
-                }
-            }
         }
     }
 
     function kidnappedChanged(player) {
         return function() {
+            publishPlayerInfo(player, "kidnapped", player.kidnapped)
+
             if (gameState == "RUNNING") {
                 if (player.kidnapped == false) {
                     changePlayerState(player, "MOVING")
@@ -551,6 +639,8 @@ Page {
     function poseChanged(player) {
         return function() {
             if (gameState == "RUNNING") {
+                publishPlayerInfo(player, "pose", Qt.vector3d(player.x, player.y, player.theta))
+
                 if (player.state == "READY") {
                     if (!areArraysEqual(player.currentZone, player.nextZone)) {
                         changePlayerState(player, "MOVING")
@@ -611,6 +701,8 @@ Page {
     function translate(player, delta) {
         console.log("Trying to translate with delta = [" + delta[0] + ", " + delta[1] + "]")
 
+        publishPlayerInfo(player, "translation_attempted", Qt.vector2d(delta[0], delta[1]))
+
         var blockers = []
         var newZones = []
 
@@ -628,12 +720,16 @@ Page {
         }
 
         if (blockers.length == 0) {
+            publishPlayerInfo(player, "translation_succeeded", Qt.vector2d(delta[0], delta[1]))
+
             for (var i = 0; i < players.length; ++i) {
                 players[i].nextZone = newPositions[i]
                 changePlayerState(players[i], "MOVING")
             }
         }
         else {
+            publishPlayerInfo(player, "translation_failed", Qt.vector2d(delta[0], delta[1]))
+
             changePlayerState(player, "CANCELLING")
             for (var i = 0; i < blockers.length; ++i) {
                 changePlayerState(blockers[i], "BLOCKING")
@@ -643,6 +739,8 @@ Page {
 
     function rotate(player, delta) {
         console.log("Trying to rotate around player " + player.number + " with delta = " + delta)
+
+        publishPlayerInfo(player, "rotation_attempted", delta)
 
         var blockers = []
         var newZoneIndices = []
@@ -657,12 +755,16 @@ Page {
         }
 
         if (blockers.length == 0) {
+            publishPlayerInfo(player, "rotation_succeeded", delta)
+
             for (var i = 0; i < players.length; ++i) {
                 players[i].nextZone = newZoneIndices[i]
                 changePlayerState(players[i], "MOVING")
             }
         }
         else {
+            publishPlayerInfo(player, "rotation_failed", delta)
+
             changePlayerState(player, "CANCELLING")
             for (var i = 0; i < blockers.length; ++i) {
                 changePlayerState(blockers[i], "BLOCKING")

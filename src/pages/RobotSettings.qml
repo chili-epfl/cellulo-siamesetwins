@@ -74,7 +74,10 @@ Page {
                     property var targetZone
                     property var nextZone
                     property var currentZone
-                    onConnectionStatusChanged: updateRobotList()
+                    onConnectionStatusChanged: {
+                        updateRobotList()
+                        robot.reset()
+                    }
                 }
 
                 Row {
