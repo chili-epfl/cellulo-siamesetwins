@@ -282,8 +282,8 @@ Page {
     }
 
     function publishGameInfo(subject, value) {
-        if (config.recordSessionn && rosNode.status == "Running") {
-            rosNode.publish("siamese_twins/" + subject, "NumbersGame", value)
+        if (config.recordSession && rosNode.status == "Running") {
+            rosNode.publish("siamese_twins/" + subject, "GAME_INFO", value)
         }
     }
 
@@ -301,6 +301,7 @@ Page {
                 "/siamese_twins/score",
                 "/siamese_twins/moves_required",
                 "/siamese_twins/moves_remaining",
+                "/siamese_twins/time_remaining",
                 "/siamese_twins/player0/state",
                 "/siamese_twins/player0/pose",
                 "/siamese_twins/player0/kidnapped",
@@ -313,6 +314,18 @@ Page {
                 "/siamese_twins/player0/rotation_attempted",
                 "/siamese_twins/player0/rotation_succeeded",
                 "/siamese_twins/player0/rotation_failed",
+                "/siamese_twins/player1/state",
+                "/siamese_twins/player1/pose",
+                "/siamese_twins/player1/kidnapped",
+                "/siamese_twins/player1/target_zone",
+                "/siamese_twins/player1/current_zone",
+                "/siamese_twins/player1/next_zone",
+                "/siamese_twins/player1/translation_attempted",
+                "/siamese_twins/player1/translation_succeeded",
+                "/siamese_twins/player1/translation_failed",
+                "/siamese_twins/player1/rotation_attempted",
+                "/siamese_twins/player1/rotation_succeeded",
+                "/siamese_twins/player1/rotation_failed"
             ]
         }
 
@@ -603,14 +616,14 @@ Page {
             var zoneIndices = map.data.zoneMatrixIndices[zone.name]
             if (value == 1) {
                 player.currentZone = zoneIndices
+                publishPlayerInfo(player, "current_zone", map.data.zoneMatrix[player.currentZone[0]][player.currentZone[1]])
             }
             else if (player.currentZone != undefined) {
                 if (areArraysEqual(zoneIndices, player.currentZone)) {
                     player.currentZone = undefined
+                    publishPlayerInfo(player, "current_zone", 0)
                 }
             }
-
-            publishPlayerInfo(player, "current_zone", map.data.zoneMatrix[player.currentZone[0]][player.currentZone[1]])
 
             console.log("Player " + player.number + (value ? " entered " : " left ") + zone.name)
         }
@@ -632,6 +645,7 @@ Page {
         return function() {
             player.clearTracking()
 
+            player.currentZone = player.nextZone;
             changePlayerState(player, "READY")
         }
     }
