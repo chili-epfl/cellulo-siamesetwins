@@ -106,7 +106,8 @@ Page {
 
             onEditingFinished: {
                 game.config.playerNames[0] = text
-                game.config.bagName = mapListItems.get(currentIndex).name + "_" + game.config.playerNames[0] + "_" + game.config.playerNames[1]
+                game.config.bagName = mapListItems.get(mapListComboBox.currentIndex).name + "_" + game.config.playerNames[0] + "_" + game.config.playerNames[1]
+                console.log("Bagname: " + game.config.bagName)
             }
         }
 
@@ -123,7 +124,7 @@ Page {
 
             onEditingFinished: {
                 game.config.playerNames[1] = text
-                game.config.bagName = mapListItems.get(currentIndex).name + "_" + game.config.playerNames[0] + "_" + game.config.playerNames[1]
+                game.config.bagName = mapListItems.get(mapListComboBox.currentIndex).name + "_" + game.config.playerNames[0] + "_" + game.config.playerNames[1]
             }
         }
 
