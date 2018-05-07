@@ -26,7 +26,7 @@ Page {
     property int movesRequired: 0
     property int movesRemaining: 0
     property int targetZonesIndex: 0
-    property int score
+    property int score: 0
     property var horizontalColor: "#0000FF"
     property var verticalColor: "#00FF00"
     property var animationColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
@@ -80,6 +80,11 @@ Page {
             "READY",
             "MOVING",
             "IDLE"
+        ],        
+        "CHANGING": [
+            "READY",
+            "MOVING",
+            "IDLE"
         ]
     }
 
@@ -122,25 +127,34 @@ Page {
                 id: timeRemainingText
                 anchors.horizontalCenter: parent.horizontalCenter
                 verticalAlignment: Text.AlignVCenter
-                height: 0.333 * parent.height
-                font.pixelSize: 0.1 * parent.height
+                height: 0.20 * parent.height
+                font.pixelSize: 0.5 * height
             }
             
             Text {
                 id: movesRemainingText
                 anchors.horizontalCenter: parent.horizontalCenter
                 verticalAlignment: Text.AlignVCenter
-                height: 0.333 * parent.height
-                text: "Minimum moves: " + String(movesRemaining)
-                font.pixelSize: 0.15 * parent.height
+                height: 0.25 * parent.height
+                text: "Moves left: " + String(movesRemaining)
+                font.pixelSize: 0.5 * height
+            }
+            
+            Text {
+                id: movesRequiredText
+                anchors.horizontalCenter: parent.horizontalCenter
+                verticalAlignment: Text.AlignVCenter
+                height: 0.25 * parent.height
+                text: "Best solution: " + String(movesRequired)
+                font.pixelSize: 0.5 * height
             }
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 verticalAlignment: Text.AlignVCenter
-                height: 0.333 * parent.height
+                height: 0.3 * parent.height
                 text: "Score: " + score
-                font.pixelSize: 0.1 * parent.height
+                font.pixelSize: 0.5 * height
             }
         }
     }
@@ -188,7 +202,7 @@ Page {
     }
 
     Timer {
-        id: animationTimer
+        id: celebrationTimer
         interval: 5e2
 
         property int count: 6
@@ -206,12 +220,25 @@ Page {
                 return
             }
             else {
-                animationTimer.restart()
+                celebrationTimer.restart()
 
                 for (var i = 0; i < players.length; ++i) {
                     var colorIndex = animationProgress % animationColors.length
                     players[i].setVisualEffect(CelluloBluetoothEnums.VisualEffectConstAll, animationColors[colorIndex], 0)
                 }
+            }
+        }
+    }
+
+    Timer {
+        id: changeTimer
+        interval: 3e3
+
+        onTriggered: {
+            loadNextTargetZones()
+
+            for (var i = 0; i < players.length; ++i) {
+                changePlayerState(players[i], "MOVING")
             }
         }
     }
@@ -451,7 +478,12 @@ Page {
         
             case "CELEBRATING":
             animationProgress = 0
-            animationTimer.restart()
+            celebrationTimer.restart()
+            break
+        
+            case "CHANGING":
+            player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, 10)
+            changeTimer.restart()
             break
 
             case "MOVING":
@@ -481,24 +513,30 @@ Page {
 
         if (areAllPlayersInState("READY")) {
             if (areAllPlayersInTargetZone()) {
-                score += 1
-                for (var i = 0; i < players.length; ++i) {
-                    changePlayerState(players[i], "CELEBRATING")
-                }
+                if (movesRemainingText.color == "#000000") {
+                    score += 1
+                    for (var i = 0; i < players.length; ++i) {
+                        changePlayerState(players[i], "CELEBRATING")
+                    }
 
-                publishGameInfo("score", score)
+                    publishGameInfo("score", score)
+                }
+                else {
+                    for (var i = 0; i < players.length; ++i) {
+                        changePlayerState(players[i], "CHANGING")
+                    }
+                }
             }
             else {
                 movesRequired = findMimimumMoves(8)
-                movesRemaining = movesRequired
                 console.log("Minimum moves: " + movesRequired)
 
                 publishGameInfo("moves_required", movesRequired)
-                publishGameInfo("moves_remaining", movesRemaining)
+
+                if (movesRemaining <= 0) {
+                    movesRemainingText.color = "#FF0000"
+                }
             }
-            // else if (movesRemaining == 0) {
-            //     loadNextTargetZones()
-            // }
         }
     }
 
@@ -566,8 +604,8 @@ Page {
 
         targetZonesIndex += 1
 
-        movesRequired = findMimimumMoves(8)
-        movesRemaining = movesRequired
+        movesRequired = movesRemaining = findMimimumMoves(8)
+        movesRemainingText.color = "#000000"
         console.log("Minimum moves: " + movesRequired)
 
         publishGameInfo("moves_required", movesRequired)
@@ -596,8 +634,8 @@ Page {
             console.assert(players[i].currentZone != undefined, "Cannot compute moves remaining for players with unknown current zones!")
         }
 
-        movesRequired = findMimimumMoves(8)
-        movesRemaining = movesRequired
+        movesRequired = movesRemaining = findMimimumMoves(8)
+        movesRemainingText.color = "#000000"
         console.log("Minimum moves: " + movesRequired)
 
         publishGameInfo("moves_required", movesRequired)
@@ -738,16 +776,28 @@ Page {
                     }
 
                     if (Math.abs(translation.x) > config.translationDelta) {
+                        translate(player, [Math.sign(translation.x), 0])
+
+                        if (movesRemaining > 0) {
                             movesRemaining -= 1
-                            translate(player, [Math.sign(translation.x), 0])
+                            publishGameInfo("moves_remaining", movesRemaining)
+                        }
                     }
                     else if (Math.abs(translation.y) > config.translationDelta) {
-                        movesRemaining -= 1
                         translate(player, [0, Math.sign(translation.y)])
+
+                        if (movesRemaining > 0) {
+                            movesRemaining -= 1
+                            publishGameInfo("moves_remaining", movesRemaining)
+                        }
                     }
                     else if (Math.abs(rotation) > config.rotationDelta) {
-                        movesRemaining -= 1
                         rotate(player, Math.sign(rotation))
+
+                        if (movesRemaining > 0) {
+                            movesRemaining -= 1
+                            publishGameInfo("moves_remaining", movesRemaining)
+                        }
                     }
                     else {
                         var translationThreshold = 0.25 * config.translationDelta
@@ -764,7 +814,7 @@ Page {
                     var zoneName = map.data.zoneNameMatrix[player.nextZone[0]][player.nextZone[1]]
                     var zone = map.zones[map.data.zoneJsonIndex[zoneName]]
                     var distanceToCenter = Qt.vector2d(player.x - zone.x, player.y - zone.y)
-                    if (distanceToCenter.dotProduct(distanceToCenter) < 10.0) {
+                    if (distanceToCenter.dotProduct(distanceToCenter) < 15.0) {
                         trackingGoalReached(player)
                     }
                 }
@@ -1100,8 +1150,6 @@ Page {
                     if (!(hash in memo)) {
                         future.push(next)
                     }
-
-                    console.log(JSON.stringify(next))
                 }
 
                 // filter for goal/validity

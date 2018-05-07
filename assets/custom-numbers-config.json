@@ -8,7 +8,7 @@
   "maxPlayers": 2,
   "translationDelta": 30.0,
   "rotationDelta": 30.0,
-  "gameLength": 3600.0,
+  "gameLength": 300.0,
   "data": {
     "logicalZoneCount": 6,
     "zoneJsonIndex": {
