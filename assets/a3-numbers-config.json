@@ -6,6 +6,7 @@
   "angularVelocity": 1.5,
   "minPlayers": 2,
   "maxPlayers": 2,
+  "playerNames": [],
   "maxMoveDistance": 170.0,
   "translationDelta": 30.0,
   "rotationDelta": 30.0,

@@ -31,7 +31,6 @@ Page {
     property var verticalColor: "#00FF00"
     property var animationColors: ["#0000FF", "#00FF00", "#FFFF00", "#FF00FF"]
     property int animationProgress: 0
-    property int playersWantingToChangeAxis: 0
 
     property var gameTransitions: {
         "IDLE": [
@@ -305,10 +304,10 @@ Page {
 
         changeGameState("IDLE")
 
-        rosRecorder.stopRecording(config.bagName)
-        
         timeRemainingText.text = null
         startStopButton.text = "Start game"
+
+        rosRecorder.stopRecording(config.bagName)
     }
 
     function publishPlayerInfo(player, subject, value) {
@@ -350,6 +349,18 @@ Page {
                 "/siamese_twins/player0/rotation_attempted",
                 "/siamese_twins/player0/rotation_succeeded",
                 "/siamese_twins/player0/rotation_failed",
+                "/siamese_twins/player0/touch0",
+                "/siamese_twins/player0/touch1",
+                "/siamese_twins/player0/touch2",
+                "/siamese_twins/player0/touch3",
+                "/siamese_twins/player0/touch4",
+                "/siamese_twins/player0/touch5",
+                "/siamese_twins/player0/longtouch0",
+                "/siamese_twins/player0/longtouch1",
+                "/siamese_twins/player0/longtouch2",
+                "/siamese_twins/player0/longtouch3",
+                "/siamese_twins/player0/longtouch4",
+                "/siamese_twins/player0/longtouch5",
                 "/siamese_twins/player1/state",
                 "/siamese_twins/player1/pose",
                 "/siamese_twins/player1/kidnapped",
@@ -361,7 +372,19 @@ Page {
                 "/siamese_twins/player1/translation_failed",
                 "/siamese_twins/player1/rotation_attempted",
                 "/siamese_twins/player1/rotation_succeeded",
-                "/siamese_twins/player1/rotation_failed"
+                "/siamese_twins/player1/rotation_failed",
+                "/siamese_twins/player1/touch0",
+                "/siamese_twins/player1/touch1",
+                "/siamese_twins/player1/touch2",
+                "/siamese_twins/player1/touch3",
+                "/siamese_twins/player1/touch4",
+                "/siamese_twins/player1/touch5",
+                "/siamese_twins/player1/longtouch0",
+                "/siamese_twins/player1/longtouch1",
+                "/siamese_twins/player1/longtouch2",
+                "/siamese_twins/player1/longtouch3",
+                "/siamese_twins/player1/longtouch4",
+                "/siamese_twins/player1/longtouch5"
             ]
         }
 
@@ -379,8 +402,8 @@ Page {
             publishPlayerInfo(player, "pose", Qt.vector3d(player.x, player.y, player.theta))
             publishPlayerInfo(player, "kidnapped", player.kidnapped)
             publishPlayerInfo(player, "target_zone", player.targetZone)
-            publishPlayerInfo(player, "current_zone", map.data.zoneMatrix[player.currentZone[0]][player.currentZone[1]])
-            publishPlayerInfo(player, "next_zone", map.data.zoneMatrix[player.nextZone[0]][player.nextZone[1]])
+            publishPlayerInfo(player, "current_zone", player.currentZone[0], player.currentZone[1])
+            publishPlayerInfo(player, "next_zone", player.nextZone[0], player.nextZone[1])
         }
     }
 
@@ -714,12 +737,12 @@ Page {
             var zoneIndices = map.data.zoneMatrixIndices[zone.name]
             if (value == 1) {
                 player.currentZone = zoneIndices
-                publishPlayerInfo(player, "current_zone", map.data.zoneMatrix[player.currentZone[0]][player.currentZone[1]])
+                publishPlayerInfo(player, "current_zone", player.currentZone[0], player.currentZone[1])
             }
             else if (player.currentZone != undefined) {
                 if (areArraysEqual(zoneIndices, player.currentZone)) {
                     player.currentZone = undefined
-                    publishPlayerInfo(player, "current_zone", 0)
+                    publishPlayerInfo(player, "current_zone", -1, -1)
                 }
             }
 
@@ -848,6 +871,7 @@ Page {
 
             for (var i = 0; i < players.length; ++i) {
                 players[i].nextZone = newPositions[i]
+                publishPlayerInfo(players[i], "next_zone", players[i].nextZone[0], players[i].nextZone[1])
                 changePlayerState(players[i], "MOVING")
             }
         }
@@ -883,6 +907,7 @@ Page {
 
             for (var i = 0; i < players.length; ++i) {
                 players[i].nextZone = newZoneIndices[i]
+                publishPlayerInfo(players[i], "next_zone", players[i].nextZone[0], players[i].nextZone[1])
                 changePlayerState(players[i], "MOVING")
             }
         }
@@ -1133,7 +1158,6 @@ Page {
                         }
 
                         next.push("rot([" + current[j][0] + "," + current[j][1] + "], " + rotations[i] + ")")
-
                         var hash = computePositionHash(next)
                         if (!(hash in memo)) {
                             memo[hash] = true

@@ -34,15 +34,6 @@ Page {
         property var data
     }
 
-    Item {
-        id: config
-        visible: false
-
-        property real linearVelocity
-        property real translationDelta
-        property real gameLength
-    }
-
     function loadMap(name) {
         console.log("Loading map " + name + "...")
 
@@ -60,13 +51,8 @@ Page {
             console.log("Loaded zone " + map.zones[i].name + " with center " + map.zones[i].x + ", " + map.zones[i].y)
         }
 
-        config.recordSession = config["recordSession"]
-        config.linearVelocity = config["linearVelocity"]
-        config.angularVelocity = config["angularVelocity"]
-        config.translationDelta = config["translationDelta"]
-        config.rotationDelta = config["rotationDelta"]
-        config.gameLength = config["gameLength"]
-
+        player1NameInput.text = config.playerNames[0]
+        player2NameInput.text = config.playerNames[1]
         recordSessionCheckBox.checked = config.recordSession
         linearVelocityInput.text = config.linearVelocity
         angularVelocityInput.text = config.angularVelocity
@@ -74,7 +60,7 @@ Page {
         rotationDeltaInput.text = config.rotationDelta
         gameLengthInput.text = config.gameLength
 
-        config.bagName = name
+        config.bagName = name + "_" + config.playerNames[0] + "_" + config.playerNames[1]
 
         game.map = map 
         game.config = config
@@ -105,6 +91,40 @@ Page {
             }
             textRole: "text"
             onCurrentIndexChanged: loadMap(mapListItems.get(currentIndex).name)
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            text: qsTr("Player 1 name: ")
+            font.bold: true
+        }
+
+        TextInput {
+            id: player1NameInput
+            Layout.minimumWidth: 40
+            Layout.preferredWidth: 40
+
+            onEditingFinished: {
+                game.config.playerNames[0] = text
+                game.config.bagName = mapListItems.get(currentIndex).name + "_" + game.config.playerNames[0] + "_" + game.config.playerNames[1]
+            }
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            text: qsTr("Player 2 name: ")
+            font.bold: true
+        }
+
+        TextInput {
+            id: player2NameInput
+            Layout.minimumWidth: 40
+            Layout.preferredWidth: 40
+
+            onEditingFinished: {
+                game.config.playerNames[1] = text
+                game.config.bagName = mapListItems.get(currentIndex).name + "_" + game.config.playerNames[0] + "_" + game.config.playerNames[1]
+            }
         }
 
         Text {
