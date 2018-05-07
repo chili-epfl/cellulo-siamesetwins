@@ -367,6 +367,7 @@ Page {
         publishGameInfo("state", gameState)
 
         if (newState == "INIT") {
+            targetZonesIndex = 0
             score = 0
 
             if (mapChanged) {
@@ -854,7 +855,7 @@ Page {
     */
     function findZonesAfterTranslation(zoneMatrix, direction, positions) {
         var indexed = []
-        for (var i = 0; i < positions.length; ++i) {
+        for (var i = 0; i < players.length; ++i) {
             indexed.push([i, positions[i]])
         }
 
@@ -1075,11 +1076,13 @@ Page {
 
                 // store rotations
                 for (var i = 0; i < rotations.length; ++i) {
-                    for (var j = 0; j < current.length; ++j) {
+                    for (var j = 0; j < players.length; ++j) {
                         var next = []
-                        for (var k = 0; k < current.length; ++k) {
-                            next.push(findZoneAfterRotation(current[j], rotations[i], current[k]))
+                        for (var k = 0; k < players.length; ++k) {
+                            next.push(findZoneAfterRotation(current[j], rotations[i], current[k]))    
                         }
+
+                        next.push("rot([" + current[j][0] + "," + current[j][1] + "], " + rotations[i] + ")")
 
                         var hash = computePositionHash(next)
                         if (!(hash in memo)) {
@@ -1092,10 +1095,13 @@ Page {
                 // store translations
                 for (var i = 0; i < translations.length; ++i) {
                     var next = findZonesAfterTranslation(zoneMatrix, translations[i], current)
+                    next.push("trans(" + String(translations[i][0]) + ", " + String(translations[i][1]) + ")")
                     var hash = computePositionHash(next)
                     if (!(hash in memo)) {
                         future.push(next)
                     }
+
+                    console.log(JSON.stringify(next))
                 }
 
                 // filter for goal/validity
@@ -1104,7 +1110,7 @@ Page {
                     var accept = true
                     var found = true
 
-                    for (var j = 0; j < future[i].length; ++j) {
+                    for (var j = 0; j < players.length; ++j) {
                         if (future[i][j][0] >= 0 && future[i][j][0] < zoneMatrix.length &&
                             future[i][j][1] >= 0 && future[i][j][1] < zoneMatrix[0].length) {
                             if (zoneMatrix[future[i][j][0]][future[i][j][1]] != targets[j]) {
@@ -1115,12 +1121,11 @@ Page {
                             accept = found = false
                         }
                     }
-
                     if (found) {
-                        var path = [ future[i] ]
-                        var index = tree[d][n][1]
+                        var path = [ [future[i], n] ]
+                        var index = n
                         for (var level = d; level > 0; --level) {
-                            path.push(tree[level][index][0])
+                            path.push(tree[level][index])
                             index = tree[level][index][1]
                         }
 
@@ -1129,8 +1134,10 @@ Page {
                             console.log(path.length - step)
 
                             for (var p = 0; p < players.length; ++p) {
-                                console.log("[" + path[step][p][0] + ", " + path[step][p][1] + "]")
+                                console.log("[" + path[step][0][p][0] + ", " + path[step][0][p][1] + "]")
                             }
+
+                            console.log("Op: " + path[step][0][players.length])
                         }
                         return d + 1
                     }
