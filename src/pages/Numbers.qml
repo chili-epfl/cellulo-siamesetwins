@@ -10,6 +10,7 @@ import QMLCache 1.0
 import QMLBluetoothExtras 1.0
 import QMLRos 1.0
 import QMLRosRecorder 1.0
+import QMLFileIo 1.0
 
 Page {
     id: root
@@ -24,6 +25,7 @@ Page {
     property string gameState: "IDLE"
     property int movesRequired: 0
     property int movesRemaining: 0
+    property int targetZonesIndex: 0
     property int score
     property var horizontalColor: "#0000FF"
     property var verticalColor: "#00FF00"
@@ -98,6 +100,10 @@ Page {
         id: rosRecorder
     }
 
+    QMLFileIo {
+        id: fileIo
+    }
+
     Rectangle {
         id: mainDisplay
         anchors.centerIn: parent
@@ -125,8 +131,8 @@ Page {
                 anchors.horizontalCenter: parent.horizontalCenter
                 verticalAlignment: Text.AlignVCenter
                 height: 0.333 * parent.height
-                text: "Moves left: " + String(movesRemaining)
-                font.pixelSize: 0.2 * parent.height
+                text: "Minimum moves: " + String(movesRemaining)
+                font.pixelSize: 0.15 * parent.height
             }
 
             Text {
@@ -191,7 +197,7 @@ Page {
 
             if (animationProgress > count) {
                 animationProgress = 0
-                chooseNewTargetZones()
+                loadNextTargetZones()
 
                 for (var i = 0; i < players.length; ++i) {
                     changePlayerState(players[i], "MOVING")
@@ -242,6 +248,9 @@ Page {
     }
 
     function start() {
+        // fileIo.setPath("/home/florian/targets.json")
+        // fileIo.write(JSON.stringify(generateTargetZoneList([4, 3], 100)))
+
         timeRemainingText.text = "Time left: " + config.gameLength.toFixed(2)
 
         if (players.length < map.minPlayers) {
@@ -358,6 +367,8 @@ Page {
         publishGameInfo("state", gameState)
 
         if (newState == "INIT") {
+            score = 0
+
             if (mapChanged) {
                 zoneEngine.clearZones()
                 zoneEngine.addNewZones(map.zones)
@@ -424,7 +435,7 @@ Page {
         
             case "READY":
             if (gameState == "INIT" && areAllPlayersInState("READY")) {
-                chooseNewTargetZones()
+                loadNextTargetZones()
                 changeGameState("RUNNING")
             }
 
@@ -476,9 +487,17 @@ Page {
 
                 publishGameInfo("score", score)
             }
-            else if (movesRemaining == 0) {
-                chooseNewTargetZones()
+            else {
+                movesRequired = findMimimumMoves(8)
+                movesRemaining = movesRequired
+                console.log("Minimum moves: " + movesRequired)
+
+                publishGameInfo("moves_required", movesRequired)
+                publishGameInfo("moves_remaining", movesRemaining)
             }
+            // else if (movesRemaining == 0) {
+            //     loadNextTargetZones()
+            // }
         }
     }
 
@@ -510,6 +529,50 @@ Page {
         return true
     }
 
+    function generateTargetZoneList(currentZones, count) {
+        var i = 0
+        var targetZones = []
+
+        for (var j = 0; j < count; ++j) {
+            targetZones.push([])
+            for (var i = 0; i < currentZones.length; ++i) {
+                var choice
+                do {
+                    choice = randomInt(1, map.data.logicalZoneCount + 1)
+                } while (choice == currentZones[i] ||
+                         find(targetZones[j], choice) != -1)
+
+                targetZones[j].push(choice)
+            }
+
+            currentZones = targetZones[j]
+        }
+
+        return targetZones
+    }
+
+    function loadNextTargetZones() {
+        var positions = []
+        var targets = []
+
+        for (var i = 0; i < players.length; ++i) {
+            players[i].targetZone = map.data.targetZones[targetZonesIndex][i]
+            displayTargetZoneWithLeds(players[i], CelluloBluetoothEnums.VisualEffectConstSingle, players[i].ledColor)
+            publishPlayerInfo(players[i], "target_zone", players[i].targetZone)
+
+            console.assert(players[i].currentZone != undefined, "Cannot compute moves remaining for players with unknown current zones!")
+        }
+
+        targetZonesIndex += 1
+
+        movesRequired = findMimimumMoves(8)
+        movesRemaining = movesRequired
+        console.log("Minimum moves: " + movesRequired)
+
+        publishGameInfo("moves_required", movesRequired)
+        publishGameInfo("moves_remaining", movesRemaining)
+    }
+
     function chooseNewTargetZones() {
         var newTargetZones = []
 
@@ -523,8 +586,6 @@ Page {
             newTargetZones.push(choice)
         }
 
-        var positions = []
-        var targets = []
         for (var i = 0; i < players.length; ++i) {
             console.log("Player " + i + " changed target zone from " + players[i].targetZone + " to " + newTargetZones[i])
             players[i].targetZone = newTargetZones[i]
@@ -532,11 +593,9 @@ Page {
             publishPlayerInfo(players[i], "target_zone", players[i].targetZone)
 
             console.assert(players[i].currentZone != undefined, "Cannot compute moves remaining for players with unknown current zones!")
-            positions.push(players[i].currentZone)
-            targets.push(players[i].targetZone)
         }
 
-        movesRequired = findMimimumMoves(map.data.zoneMatrix, positions, targets, 8)
+        movesRequired = findMimimumMoves(8)
         movesRemaining = movesRequired
         console.log("Minimum moves: " + movesRequired)
 
@@ -980,8 +1039,16 @@ Page {
         return hash
     }
 
-    function findMimimumMoves(zoneMatrix, positions, targets, limit) {
-        var path = []
+    function findMimimumMoves(limit) {
+        var zoneMatrix = map.data.zoneMatrix
+        var positions = []
+        var targets = []
+
+        for (var i = 0; i < players.length; ++i) {
+            positions.push(players[i].currentZone)
+            targets.push(players[i].targetZone)
+        }
+
         var memo = []
         var rotations = [-1, 1]
         var translations = [

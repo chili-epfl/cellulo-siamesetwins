@@ -97,7 +97,7 @@ Page {
             id: mapListComboBox
             Layout.minimumWidth: 200
             Layout.preferredWidth: 300
-            currentIndex: 0
+            currentIndex: 1
             model: ListModel {
                 id: mapListItems
                 ListElement { text: "Numbers (A3, 2 players)"; name: "a3-numbers"; }

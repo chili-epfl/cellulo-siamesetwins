@@ -13,7 +13,7 @@ Page {
 
     title: qsTr("Robot Settings")
 
-    property int robotCount: 1
+    property int robotCount: 2
     property var robots: []
 
     function updateRobotList() {
