@@ -191,8 +191,7 @@ Page {
             timeLeft = config.gameLength - 1e-3 * (new Date().getTime() - startTime)
 
             if (timeLeft <= 0) {
-                timeRemainingText.text = "Game Over!"
-                stop()
+                root.stop()
             } else {
                 publishGameInfo("time_remaining", timeLeft)
                 timeRemainingText.text = "Time left: " + timeLeft.toFixed(2)
@@ -208,15 +207,16 @@ Page {
         onTriggered: {
             animationProgress += 1
 
-            if (animationProgress > count) {
+            if (gameState == "IDLE") {
+                animationProgress = 0
+            }
+            else if (animationProgress > count) {
                 animationProgress = 0
                 loadNextTargetZones()
 
                 for (var i = 0; i < players.length; ++i) {
                     changePlayerState(players[i], "MOVING")
                 }
-
-                return
             }
             else {
                 celebrationTimer.restart()
@@ -304,7 +304,7 @@ Page {
 
         changeGameState("IDLE")
 
-        timeRemainingText.text = null
+        timeRemainingText.text = "Game Over!"
         startStopButton.text = "Start game"
 
         rosRecorder.stopRecording(config.bagName)
