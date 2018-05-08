@@ -230,6 +230,16 @@ Page {
     }
 
     Timer {
+        id: waitTimer
+        interval: 2e3
+        property var callback
+
+        onTriggered: {
+            changeGameState("INIT")
+        }
+    }
+
+    Timer {
         id: changeTimer
         interval: 3e3
 
@@ -277,6 +287,8 @@ Page {
         // fileIo.setPath("/home/florian/targets.json")
         // fileIo.write(JSON.stringify(generateTargetZoneList([4, 3], 100)))
 
+        rosRecorder.startRecording(config.bagName)
+
         timeRemainingText.text = "Time left: " + config.gameLength.toFixed(2)
 
         if (players.length < map.minPlayers) {
@@ -298,10 +310,6 @@ Page {
     }
 
     function stop() {
-        for (var i = 0; i < players.length; ++i) {
-            changePlayerState(players[i], "IDLE")
-        }
-
         changeGameState("IDLE")
 
         timeRemainingText.text = "Game Over!"
@@ -311,21 +319,19 @@ Page {
     }
 
     function publishPlayerInfo(player, subject, value) {
-        if (config.recordSession && rosNode.status == "Running") {
+        if (config.recordSession) {
             rosNode.publish("siamese_twins/player" + player.number + "/" + subject, player.macAddr, value)
         }
     }
 
     function publishGameInfo(subject, value) {
-        if (config.recordSession && rosNode.status == "Running") {
+        if (config.recordSession) {
             rosNode.publish("siamese_twins/" + subject, "GAME_INFO", value)
         }
     }
 
-    function initializeRos() {
-        if (rosNode.status == "Idle") {
-            rosNode.startNode()
-        }
+    function initializeRosNodes() {
+        console.log("Initializing ROS nodes")
 
         if (rosRecorder.status == "Idle") {
             rosRecorder.startNode()
@@ -388,12 +394,18 @@ Page {
             ]
         }
 
-        rosRecorder.startRecording(config.bagName)
+        // rosRecorder.startRecording(config.bagName)
+
+        if (rosNode.status == "Idle") {
+            rosNode.startNode()
+        }
+    }
+
+    function publishInitialValues() {
+        console.log("Publishing initial values")
 
         publishGameInfo("state", gameState)
         publishGameInfo("score", score)
-        publishGameInfo("moves_required", movesRequired)
-        publishGameInfo("moves_remaining", movesRemaining)
         publishGameInfo("time_remaining", timeLeft)
 
         for (var i = 0; i < players.length; ++i) {
@@ -402,8 +414,8 @@ Page {
             publishPlayerInfo(player, "pose", Qt.vector3d(player.x, player.y, player.theta))
             publishPlayerInfo(player, "kidnapped", player.kidnapped)
             publishPlayerInfo(player, "target_zone", player.targetZone)
-            publishPlayerInfo(player, "current_zone", player.currentZone[0], player.currentZone[1])
-            publishPlayerInfo(player, "next_zone", player.nextZone[0], player.nextZone[1])
+            publishPlayerInfo(player, "current_zone", map.data.zoneNameMatrix[player.currentZone[0]][player.currentZone[1]])
+            publishPlayerInfo(player, "next_zone", map.data.zoneNameMatrix[player.nextZone[0]][player.nextZone[1]])
         }
     }
 
@@ -413,6 +425,8 @@ Page {
 
         console.assert(find(gameTransitions[gameState], newState) != -1)
         console.log("Game state changed from " + gameState + " to " + newState)
+        
+        gameState = newState
 
         publishGameInfo("state", gameState)
 
@@ -433,6 +447,9 @@ Page {
                 players[i].kidnappedChanged.connect(kidnappedChanged(players[i]))
                 players[i].trackingGoalReached.connect(trackingGoalReached(players[i]))
                 players[i].poseChanged.connect(poseChanged(players[i]))
+                players[i].touchBegan.connect(touchBegan(players[i]))
+                players[i].longTouch.connect(longTouch(players[i]))
+                players[i].touchReleased.connect(touchReleased(players[i]))
                 players[i].ledColor = animationColors[i]
 
                 zoneEngine.addNewClient(players[i])
@@ -442,19 +459,26 @@ Page {
         }
         else if (newState == "RUNNING") {
             gameTimer.start()
-
-            if (config.recordSession) {
-                initializeRos()
-            }
         }
         else if (newState == "IDLE") {
             gameTimer.stop()
             gameTimer.startTime = 0
 
             zoneEngine.active = false
-        }
 
-        gameState = newState
+            for (var i = 0; i < players.length; ++i) {
+                players[i].zoneValueChanged.disconnect(zoneValueChanged(players[i]))
+                players[i].kidnappedChanged.disconnect(kidnappedChanged(players[i]))
+                players[i].trackingGoalReached.disconnect(trackingGoalReached(players[i]))
+                players[i].poseChanged.disconnect(poseChanged(players[i]))
+                players[i].touchBegan.disconnect(touchBegan(players[i]))
+                players[i].longTouch.disconnect(longTouch(players[i]))
+                players[i].touchReleased.disconnect(touchReleased(players[i]))
+                players[i].ledColor = animationColors[i]
+
+                changePlayerState(players[i], "IDLE")
+            }
+        }
     }
 
     function changePlayerState(player, newState) {
@@ -488,6 +512,7 @@ Page {
             if (gameState == "INIT" && areAllPlayersInState("READY")) {
                 loadNextTargetZones()
                 changeGameState("RUNNING")
+                publishInitialValues()
             }
 
             for (var i = 0; i < players.length; ++i) {
@@ -535,6 +560,8 @@ Page {
         }
 
         if (areAllPlayersInState("READY")) {
+            publishGameInfo("moves_remaining", movesRemaining)
+            
             if (areAllPlayersInTargetZone()) {
                 if (movesRemainingText.color == "#000000") {
                     score += 1
@@ -553,7 +580,6 @@ Page {
             else {
                 movesRequired = findMimimumMoves(8)
                 console.log("Minimum moves: " + movesRequired)
-
                 publishGameInfo("moves_required", movesRequired)
 
                 if (movesRemaining <= 0) {
@@ -737,12 +763,12 @@ Page {
             var zoneIndices = map.data.zoneMatrixIndices[zone.name]
             if (value == 1) {
                 player.currentZone = zoneIndices
-                publishPlayerInfo(player, "current_zone", player.currentZone[0], player.currentZone[1])
+                publishPlayerInfo(player, "current_zone", map.data.zoneNameMatrix[player.currentZone[0]][player.currentZone[1]])
             }
             else if (player.currentZone != undefined) {
                 if (areArraysEqual(zoneIndices, player.currentZone)) {
                     player.currentZone = undefined
-                    publishPlayerInfo(player, "current_zone", -1, -1)
+                    publishPlayerInfo(player, "current_zone", "null")
                 }
             }
 
@@ -800,27 +826,12 @@ Page {
 
                     if (Math.abs(translation.x) > config.translationDelta) {
                         translate(player, [Math.sign(translation.x), 0])
-
-                        if (movesRemaining > 0) {
-                            movesRemaining -= 1
-                            publishGameInfo("moves_remaining", movesRemaining)
-                        }
                     }
                     else if (Math.abs(translation.y) > config.translationDelta) {
                         translate(player, [0, Math.sign(translation.y)])
-
-                        if (movesRemaining > 0) {
-                            movesRemaining -= 1
-                            publishGameInfo("moves_remaining", movesRemaining)
-                        }
                     }
                     else if (Math.abs(rotation) > config.rotationDelta) {
                         rotate(player, Math.sign(rotation))
-
-                        if (movesRemaining > 0) {
-                            movesRemaining -= 1
-                            publishGameInfo("moves_remaining", movesRemaining)
-                        }
                     }
                     else {
                         var translationThreshold = 0.25 * config.translationDelta
@@ -837,11 +848,30 @@ Page {
                     var zoneName = map.data.zoneNameMatrix[player.nextZone[0]][player.nextZone[1]]
                     var zone = map.zones[map.data.zoneJsonIndex[zoneName]]
                     var distanceToCenter = Qt.vector2d(player.x - zone.x, player.y - zone.y)
-                    if (distanceToCenter.dotProduct(distanceToCenter) < 15.0) {
+                    if (distanceToCenter.dotProduct(distanceToCenter) < 10.0) {
                         trackingGoalReached(player)
                     }
                 }
             }
+        }
+    }
+
+    function touchBegan(player) {
+        return function(key) {
+            publishPlayerInfo(player, "touch" + parseInt(key), true)
+        }
+    }
+
+    function longTouch(player) {
+        return function(key) {
+            publishPlayerInfo(player, "longtouch" + parseInt(key), true)
+        }
+    }
+
+    function touchReleased(player) {
+        return function(key) {
+            publishPlayerInfo(player, "touch" + parseInt(key), false)
+            publishPlayerInfo(player, "longtouch" + parseInt(key), false)
         }
     }
 
@@ -868,10 +898,13 @@ Page {
 
         if (blockers.length == 0) {
             publishPlayerInfo(player, "translation_succeeded", Qt.vector2d(delta[0], delta[1]))
+            if (movesRemaining > 0) {
+                movesRemaining -= 1
+            }
 
             for (var i = 0; i < players.length; ++i) {
                 players[i].nextZone = newPositions[i]
-                publishPlayerInfo(players[i], "next_zone", players[i].nextZone[0], players[i].nextZone[1])
+                publishPlayerInfo(players[i], "next_zone", map.data.zoneNameMatrix[players[i].nextZone[0]][players[i].nextZone[1]])
                 changePlayerState(players[i], "MOVING")
             }
         }
@@ -904,10 +937,13 @@ Page {
 
         if (blockers.length == 0) {
             publishPlayerInfo(player, "rotation_succeeded", delta)
+            if (movesRemaining > 0) {
+                movesRemaining -= 1
+            }
 
             for (var i = 0; i < players.length; ++i) {
                 players[i].nextZone = newZoneIndices[i]
-                publishPlayerInfo(players[i], "next_zone", players[i].nextZone[0], players[i].nextZone[1])
+                publishPlayerInfo(players[i], "next_zone", map.data.zoneNameMatrix[players[i].nextZone[0]][players[i].nextZone[1]])
                 changePlayerState(players[i], "MOVING")
             }
         }
@@ -1225,5 +1261,14 @@ Page {
         }
 
         return limit + 1
+    }
+
+    Component.onCompleted: {
+        initializeRosNodes()
+    }
+
+    Component.onDestruction: {
+        rosNode.stopNode()
+        rosRecorder.stopNode()
     }
 }
