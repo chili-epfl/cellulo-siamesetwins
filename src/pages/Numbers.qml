@@ -858,20 +858,20 @@ Page {
 
     function touchBegan(player) {
         return function(key) {
-            publishPlayerInfo(player, "touch" + parseInt(key), true)
+            publishPlayerInfo(player, "touch" + String(key), true)
         }
     }
 
     function longTouch(player) {
         return function(key) {
-            publishPlayerInfo(player, "longtouch" + parseInt(key), true)
+            publishPlayerInfo(player, "longtouch" + String(key), true)
         }
     }
 
     function touchReleased(player) {
         return function(key) {
-            publishPlayerInfo(player, "touch" + parseInt(key), false)
-            publishPlayerInfo(player, "longtouch" + parseInt(key), false)
+            publishPlayerInfo(player, "touch" + String(key), false)
+            publishPlayerInfo(player, "longtouch" + String(key), false)
         }
     }
 
@@ -892,7 +892,7 @@ Page {
         for (var i = 0; i < newPositions.length; ++i) {
             if (newPositions[i][0] < 0 || newPositions[i][0] > map.data.zoneMatrix.length - 1 ||
                 newPositions[i][1] < 0 || newPositions[i][1] > map.data.zoneMatrix[0].length - 1) {
-                blockers.push(sorted[i])
+                blockers.push(players[i])
             }
         }
 
@@ -1049,7 +1049,7 @@ Page {
     }
 
     /**
-     * Finds coordinates in zone matrix where player will find itselt after rotation.
+     * Finds coordinates in zone matrix where player will find itself after rotation.
      * Inputs:
      *  - center: zone matrix coords of cetner of rotation
      *  - direction: positive if clockwise, negative if counter-clockwise
@@ -1206,6 +1206,7 @@ Page {
                 for (var i = 0; i < translations.length; ++i) {
                     var next = findZonesAfterTranslation(zoneMatrix, translations[i], current)
                     next.push("trans(" + String(translations[i][0]) + ", " + String(translations[i][1]) + ")")
+
                     var hash = computePositionHash(next)
                     if (!(hash in memo)) {
                         future.push(next)
@@ -1247,6 +1248,7 @@ Page {
 
                             console.log("Op: " + path[step][0][players.length])
                         }
+
                         return d + 1
                     }
                     else if (accept) {
