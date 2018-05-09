@@ -292,12 +292,6 @@ Page {
         // fileIo.setPath("/home/florian/targets.json")
         // fileIo.write(JSON.stringify(generateTargetZoneList([4, 3], 100)))
 
-        if (config.recordSession) {
-            rosRecorder.startRecording(config.bagName)
-        }
-
-        timeRemainingText.text = "Time left: " + config.gameLength.toFixed(2)
-
         if (players.length < map.minPlayers) {
             toast.show("Minimum number of players not met (minimum: " + map.minPlayers + ", current: " + players.length + ")")
             stop()
@@ -309,9 +303,14 @@ Page {
             return
         }
 
-        startStopButton.text = "Stop game"
+        timeRemainingText.text = "Time left: " + config.gameLength.toFixed(2)
+        movesRemaining = movesRequired = score = 0
 
-        console.log("Starting game with " + players.length + " players")
+        if (config.recordSession) {
+            rosRecorder.startRecording(config.bagName)
+        }
+
+        startStopButton.text = "Stop game"
 
         changeGameState("INIT")
     }
@@ -442,7 +441,6 @@ Page {
 
         if (newState == "INIT") {
             targetZonesIndex = 0
-            score = 0
 
             if (mapChanged) {
                 zoneEngine.clearZones()
@@ -590,7 +588,6 @@ Page {
             }
             else {
                 movesRequired = findMimimumMoves(8)
-                console.log("Minimum moves: " + movesRequired)
                 publishGameInfo("moves_required", movesRequired)
 
                 if (movesRemaining <= 0) {
@@ -736,14 +733,13 @@ Page {
     }
 
     function areAllPlayersInState(state) {
-        var answer = true
         for (var i = 0; i < players.length; ++i) {
             if (players[i].state != state) {
-                answer = false
+                return false
             }
         }
 
-        return answer
+        return true
     }
 
     function findPlayersInState(state) {
