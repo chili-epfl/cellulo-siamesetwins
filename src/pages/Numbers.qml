@@ -50,11 +50,12 @@ Page {
             "INIT"
         ],
         "INIT": [
-            "MOVING",
+            "POSITIONING",
             "IDLE"
         ],
         "READY": [
             "MOVING",
+            "POSITIONING",
             "CANCELLING",
             "BLOCKING",
             "CELEBRATING",
@@ -65,24 +66,28 @@ Page {
             "CELEBRATING",
             "IDLE"
         ],
+        "POSITIONING": [
+            "READY",
+            "IDLE"
+        ],
         "CANCELLING": [
             "READY", 
-            "MOVING",
+            "POSITIONING",
             "IDLE"
         ],
         "BLOCKING": [
             "READY", 
-            "MOVING",
+            "POSITIONING",
             "IDLE"
         ],        
         "CELEBRATING": [
             "READY",
-            "MOVING",
+            "POSITIONING",
             "IDLE"
         ],        
         "CHANGING": [
             "READY",
-            "MOVING",
+            "POSITIONING",
             "IDLE"
         ]
     }
@@ -215,7 +220,7 @@ Page {
                 loadNextTargetZones()
 
                 for (var i = 0; i < players.length; ++i) {
-                    changePlayerState(players[i], "MOVING")
+                    changePlayerState(players[i], "READY")
                 }
             }
             else {
@@ -247,7 +252,7 @@ Page {
             loadNextTargetZones()
 
             for (var i = 0; i < players.length; ++i) {
-                changePlayerState(players[i], "MOVING")
+                changePlayerState(players[i], "READY")
             }
         }
     }
@@ -273,12 +278,12 @@ Page {
             console.log("Blocking timeout triggered")
             var blockers = findPlayersInState("BLOCKING")
             for (var i = 0; i < blockers.length; ++i) {
-                changePlayerState(blockers[i], "MOVING")
+                changePlayerState(blockers[i], "READY")
             }
 
             var cancellers = findPlayersInState("CANCELLING")
             for (var i = 0; i < cancellers.length; ++i) {
-                changePlayerState(cancellers[i], "MOVING")
+                changePlayerState(cancellers[i], "READY")
             }
         }
     }
@@ -287,7 +292,9 @@ Page {
         // fileIo.setPath("/home/florian/targets.json")
         // fileIo.write(JSON.stringify(generateTargetZoneList([4, 3], 100)))
 
-        rosRecorder.startRecording(config.bagName)
+        if (config.recordSession) {
+            rosRecorder.startRecording(config.bagName)
+        }
 
         timeRemainingText.text = "Time left: " + config.gameLength.toFixed(2)
 
@@ -315,7 +322,10 @@ Page {
         timeRemainingText.text = "Game Over!"
         startStopButton.text = "Start game"
 
-        rosRecorder.stopRecording(config.bagName)
+        if (config.recordSession) {
+            rosRecorder.stopRecording(config.bagName)
+            toast.show("Recording finished!")
+        }
     }
 
     function publishPlayerInfo(player, subject, value) {
@@ -505,14 +515,14 @@ Page {
             player.targetZone = map.data.zoneMatrix[player.nextZone[0]][player.nextZone[1]]
             player.setVisualEffect(CelluloBluetoothEnums.VisualEffectBlink, player.ledColor, 10)
             player.simpleVibrate(0, 0, 0, 0, 0)
-            changePlayerState(player, "MOVING")
+            changePlayerState(player, "POSITIONING")
             break
         
             case "READY":
             if (gameState == "INIT" && areAllPlayersInState("READY")) {
                 loadNextTargetZones()
-                changeGameState("RUNNING")
                 publishInitialValues()
+                changeGameState("RUNNING")
             }
 
             for (var i = 0; i < players.length; ++i) {
@@ -535,6 +545,7 @@ Page {
             break
 
             case "MOVING":
+            case "POSITIONING":
             player.setCasualBackdriveAssistEnabled(false)
             moveToNextZone(player)
 
@@ -607,7 +618,18 @@ Page {
     }
 
     function areArraysEqual(a, b) {
-        console.assert(a != undefined && b != undefined, "Cannot compare for equality with undefined!")
+        if (a == undefined) {
+            if (b == undefined) {
+                return true
+            }
+            else {
+                return false
+            }
+        }
+        else if (b == undefined) {
+            return false
+        }
+
         for (var i = 0; i < a.length; ++i) {
             if (a[i] != b[i]) {
                 return false
@@ -782,7 +804,7 @@ Page {
 
             if (gameState == "RUNNING") {
                 if (player.kidnapped == false) {
-                    changePlayerState(player, "MOVING")
+                    changePlayerState(player, "POSITIONING")
                 }
             }
         }
@@ -792,7 +814,7 @@ Page {
         return function() {
             player.clearTracking()
 
-            player.currentZone = player.nextZone;
+            console.assert(areArraysEqual(player.currentZone, player.nextZone), "Trakcing goal reached in wrong zone!");
             changePlayerState(player, "READY")
         }
     }
@@ -804,7 +826,7 @@ Page {
 
                 if (player.state == "READY") {
                     if (!areArraysEqual(player.currentZone, player.nextZone)) {
-                        changePlayerState(player, "MOVING")
+                        changePlayerState(player, "POSITIONING")
                         return
                     }
 
@@ -844,11 +866,11 @@ Page {
                         }
                     }
                 }
-                else if (player.state == "MOVING") {
+                else if (player.state == "MOVING" || player.state == "POSITIONING") {
                     var zoneName = map.data.zoneNameMatrix[player.nextZone[0]][player.nextZone[1]]
                     var zone = map.zones[map.data.zoneJsonIndex[zoneName]]
                     var distanceToCenter = Qt.vector2d(player.x - zone.x, player.y - zone.y)
-                    if (distanceToCenter.dotProduct(distanceToCenter) < 10.0) {
+                    if (distanceToCenter.dotProduct(distanceToCenter) < 20.0) {
                         trackingGoalReached(player)
                     }
                 }

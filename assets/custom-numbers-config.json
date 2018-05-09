@@ -1,15 +1,15 @@
 {
   "physicalWidth": 420.0,
   "physicalHeight": 420.0,
-  "recordSession": false,
-  "linearVelocity": 200.0,
+  "recordSession": true,
+  "linearVelocity": 250.0,
   "angularVelocity": 1.5,
   "minPlayers": 2,
   "maxPlayers": 2,
   "playerNames": ["Flo", "Wafa"],
-  "translationDelta": 30.0,
-  "rotationDelta": 30.0,
-  "gameLength": 300.0,
+  "translationDelta": 20.0,
+  "rotationDelta": 25.0,
+  "gameLength": 360.0,
   "data": {
     "logicalZoneCount": 6,
     "zoneJsonIndex": {
