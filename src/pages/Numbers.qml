@@ -908,13 +908,12 @@ Page {
 
         var newPositions = findZonesAfterTranslation(map.data.zoneMatrix, delta, positions)
         for (var i = 0; i < newPositions.length; ++i) {
-            if (newPositions[i][0] < 0 || newPositions[i][0] > map.data.zoneMatrix.length - 1 ||
-                newPositions[i][1] < 0 || newPositions[i][1] > map.data.zoneMatrix[0].length - 1) {
+            if (newPositions[i][0] == positions[i][0] && newPositions[i][1] == positions[i][1]) {
                 blockers.push(players[i])
             }
         }
 
-        if (blockers.length == 0) {
+        if (blockers.length < players.length) {
             publishPlayerInfo(player, "translation_succeeded", Qt.vector2d(delta[0], delta[1]))
             if (movesRemaining > 0) {
                 movesRemaining -= 1
@@ -929,9 +928,8 @@ Page {
         else {
             publishPlayerInfo(player, "translation_failed", Qt.vector2d(delta[0], delta[1]))
 
-            changePlayerState(player, "CANCELLING")
             for (var i = 0; i < blockers.length; ++i) {
-                changePlayerState(blockers[i], "BLOCKING")
+                changePlayerState(blockers[i], "POSITIONING")
             }
         }
     }
