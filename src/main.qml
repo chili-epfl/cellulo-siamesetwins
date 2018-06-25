@@ -7,7 +7,6 @@ import QtQuick.Dialogs 1.3
 import Cellulo 1.0
 import QMLCache 1.0
 import QMLBluetoothExtras 1.0
-import QMLRos 1.0
 
 import "./pages"
 

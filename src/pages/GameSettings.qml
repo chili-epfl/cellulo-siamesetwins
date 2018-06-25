@@ -138,7 +138,9 @@ Page {
             id: recordSessionCheckBox
             checked: false
             onCheckedChanged: {
-                game.config.recordSession = checked
+                if (game.config != undefined) {
+                    game.config.recordSession = checked
+                }
             }
         }
 
