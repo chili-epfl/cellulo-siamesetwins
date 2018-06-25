@@ -220,7 +220,8 @@ Page {
             }
             else if (animationProgress > count) {
                 animationProgress = 0
-                loadNextTargetZones()
+                chooseNewTargetZones()
+                // loadNextTargetZones()
 
                 for (var i = 0; i < players.length; ++i) {
                     changePlayerState(players[i], "READY")
@@ -252,7 +253,8 @@ Page {
         interval: 3e3
 
         onTriggered: {
-            loadNextTargetZones()
+            chooseNewTargetZones()
+            // loadNextTargetZones()
 
             for (var i = 0; i < players.length; ++i) {
                 changePlayerState(players[i], "READY")
@@ -512,7 +514,8 @@ Page {
         
             case "READY":
             if (gameState == "INIT" && areAllPlayersInState("READY")) {
-                loadNextTargetZones()
+                chooseNewTargetZones()
+                // loadNextTargetZones()
                 publishInitialValues()
                 changeGameState("RUNNING")
             }
