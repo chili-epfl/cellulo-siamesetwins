@@ -8,10 +8,10 @@ import QtQuick.Layouts 1.3
 import Cellulo 1.0
 import QMLCache 1.0
 import QMLBluetoothExtras 1.0
-import QMLRosRecorder 1.0
 import QMLFileIo 1.0
 
-import ch.epfl.chili 1.0
+import ch.epfl.chili.ros.publisher 1.0
+import ch.epfl.chili.ros.recorder 1.0
 
 Page {
     id: root
