@@ -20,7 +20,7 @@ make
 ```
 
 ### Usage
- - Make sure a ROS master is reachable at IP address 192.168.1.100 
- - After starting the game, use the "Robots" menu entry connect to 2 Cellulo robots.
- - A number of game parameters can be configured under the "Config" menu entry
- - Select "Game" and use the displayed button to start/stop a game.
+ - If the game should be captured, configure the ROS master and start the publisher and recording nodes under "Capture Settings"
+ - After starting the game, use the "RobotSettings" menu entry connect to 2 Cellulo robots.
+ - A number of game parameters can be configured under the "Game Settings" menu entry
+ - Select the game screen in the menu and use the displayed button to start/stop a game.
