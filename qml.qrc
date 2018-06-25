@@ -5,6 +5,7 @@
         <file>src/pages/MainMenu.qml</file>
         <file>src/pages/GameSettings.qml</file>
         <file>src/pages/RobotSettings.qml</file>
+        <file>src/pages/CaptureSettings.qml</file>
         <file>assets/a3-numbers-config.json</file>
         <file>assets/a3-numbers-zones.json</file>
         <file>assets/custom-numbers-config.json</file>

@@ -44,6 +44,11 @@ ApplicationWindow {
         id: robotSettings
     }
 
+    CaptureSettings {
+        id: captureSettings
+        game: numbers
+    }
+
     header: ToolBar {
         contentHeight: toolButton.implicitHeight
 
@@ -101,6 +106,16 @@ ApplicationWindow {
                 width: parent.width
                 onClicked: {
                     stackView.push(robotSettings)
+                    drawer.close()
+                    // activityOn = false
+                }
+            }
+
+            ItemDelegate {
+                text: qsTr("Capture Settings")
+                width: parent.width
+                onClicked: {
+                    stackView.push(captureSettings)
                     drawer.close()
                     // activityOn = false
                 }

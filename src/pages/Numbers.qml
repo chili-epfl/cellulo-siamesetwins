@@ -20,6 +20,8 @@ Page {
     property var config
     property var map
     property var players
+    property var recorder
+    property var publisher
     property real timeLeft
     property bool mapChanged: false
 
@@ -307,7 +309,7 @@ Page {
         timeRemainingText.text = "Time left: " + config.gameLength.toFixed(2)
         movesRemaining = movesRequired = score = 0
 
-        if (config.recordSession) {
+        if (config.recordSession && rosRecorder.status == "Running") {
             rosRecorder.startRecording(config.bagName)
         }
 
@@ -322,20 +324,20 @@ Page {
         timeRemainingText.text = "Game Over!"
         startStopButton.text = "Start game"
 
-        if (config.recordSession) {
+        if (config.recordSession && rosRecorder.status == "Running") {
             rosRecorder.stopRecording(config.bagName)
             toast.show("Recording finished!")
         }
     }
 
     function publishPlayerInfo(player, subject, pubFun, value) {
-        if (config.recordSession) {
+        if (config.recordSession && rosPublisher.status == "Running") {
             pubFun("siamese_twins/player" + player.number + "/" + subject, player.macAddr, value)
         }
     }
 
     function publishGameInfo(subject, pubFun, value) {
-        if (config.recordSession) {
+        if (config.recordSession && rosPublisher.status == "Running") {
             pubFun("siamese_twins/" + subject, "GAME_INFO", value)
         }
     }
@@ -343,72 +345,63 @@ Page {
     function initializeRosNodes() {
         console.log("Initializing ROS nodes")
 
-        if (rosRecorder.status == "Idle") {
-            rosRecorder.startNode()
-            rosRecorder.topicsToRecord = [
-                "/audio/audio",
-                "/usb_cam/image_raw/compressed",
-                "/siamese_twins/state",
-                "/siamese_twins/score",
-                "/siamese_twins/moves_required",
-                "/siamese_twins/moves_remaining",
-                "/siamese_twins/time_remaining",
-                "/siamese_twins/player0/state",
-                "/siamese_twins/player0/pose",
-                "/siamese_twins/player0/kidnapped",
-                "/siamese_twins/player0/target_zone",
-                "/siamese_twins/player0/current_zone",
-                "/siamese_twins/player0/next_zone",
-                "/siamese_twins/player0/translation_attempted",
-                "/siamese_twins/player0/translation_succeeded",
-                "/siamese_twins/player0/translation_failed",
-                "/siamese_twins/player0/rotation_attempted",
-                "/siamese_twins/player0/rotation_succeeded",
-                "/siamese_twins/player0/rotation_failed",
-                "/siamese_twins/player0/touch0",
-                "/siamese_twins/player0/touch1",
-                "/siamese_twins/player0/touch2",
-                "/siamese_twins/player0/touch3",
-                "/siamese_twins/player0/touch4",
-                "/siamese_twins/player0/touch5",
-                "/siamese_twins/player0/longtouch0",
-                "/siamese_twins/player0/longtouch1",
-                "/siamese_twins/player0/longtouch2",
-                "/siamese_twins/player0/longtouch3",
-                "/siamese_twins/player0/longtouch4",
-                "/siamese_twins/player0/longtouch5",
-                "/siamese_twins/player1/state",
-                "/siamese_twins/player1/pose",
-                "/siamese_twins/player1/kidnapped",
-                "/siamese_twins/player1/target_zone",
-                "/siamese_twins/player1/current_zone",
-                "/siamese_twins/player1/next_zone",
-                "/siamese_twins/player1/translation_attempted",
-                "/siamese_twins/player1/translation_succeeded",
-                "/siamese_twins/player1/translation_failed",
-                "/siamese_twins/player1/rotation_attempted",
-                "/siamese_twins/player1/rotation_succeeded",
-                "/siamese_twins/player1/rotation_failed",
-                "/siamese_twins/player1/touch0",
-                "/siamese_twins/player1/touch1",
-                "/siamese_twins/player1/touch2",
-                "/siamese_twins/player1/touch3",
-                "/siamese_twins/player1/touch4",
-                "/siamese_twins/player1/touch5",
-                "/siamese_twins/player1/longtouch0",
-                "/siamese_twins/player1/longtouch1",
-                "/siamese_twins/player1/longtouch2",
-                "/siamese_twins/player1/longtouch3",
-                "/siamese_twins/player1/longtouch4",
-                "/siamese_twins/player1/longtouch5"
-            ]
-        }
-
-        // rosRecorder.startRecording(config.bagName)
-
-        if (rosPublisher.status == "Idle") {
-            rosPublisher.startNode()
-        }
+        rosRecorder.topicsToRecord = [
+            "/audio/audio",
+            "/usb_cam/image_raw/compressed",
+            "/siamese_twins/state",
+            "/siamese_twins/score",
+            "/siamese_twins/moves_required",
+            "/siamese_twins/moves_remaining",
+            "/siamese_twins/time_remaining",
+            "/siamese_twins/player0/state",
+            "/siamese_twins/player0/pose",
+            "/siamese_twins/player0/kidnapped",
+            "/siamese_twins/player0/target_zone",
+            "/siamese_twins/player0/current_zone",
+            "/siamese_twins/player0/next_zone",
+            "/siamese_twins/player0/translation_attempted",
+            "/siamese_twins/player0/translation_succeeded",
+            "/siamese_twins/player0/translation_failed",
+            "/siamese_twins/player0/rotation_attempted",
+            "/siamese_twins/player0/rotation_succeeded",
+            "/siamese_twins/player0/rotation_failed",
+            "/siamese_twins/player0/touch0",
+            "/siamese_twins/player0/touch1",
+            "/siamese_twins/player0/touch2",
+            "/siamese_twins/player0/touch3",
+            "/siamese_twins/player0/touch4",
+            "/siamese_twins/player0/touch5",
+            "/siamese_twins/player0/longtouch0",
+            "/siamese_twins/player0/longtouch1",
+            "/siamese_twins/player0/longtouch2",
+            "/siamese_twins/player0/longtouch3",
+            "/siamese_twins/player0/longtouch4",
+            "/siamese_twins/player0/longtouch5",
+            "/siamese_twins/player1/state",
+            "/siamese_twins/player1/pose",
+            "/siamese_twins/player1/kidnapped",
+            "/siamese_twins/player1/target_zone",
+            "/siamese_twins/player1/current_zone",
+            "/siamese_twins/player1/next_zone",
+            "/siamese_twins/player1/translation_attempted",
+            "/siamese_twins/player1/translation_succeeded",
+            "/siamese_twins/player1/translation_failed",
+            "/siamese_twins/player1/rotation_attempted",
+            "/siamese_twins/player1/rotation_succeeded",
+            "/siamese_twins/player1/rotation_failed",
+            "/siamese_twins/player1/touch0",
+            "/siamese_twins/player1/touch1",
+            "/siamese_twins/player1/touch2",
+            "/siamese_twins/player1/touch3",
+            "/siamese_twins/player1/touch4",
+            "/siamese_twins/player1/touch5",
+            "/siamese_twins/player1/longtouch0",
+            "/siamese_twins/player1/longtouch1",
+            "/siamese_twins/player1/longtouch2",
+            "/siamese_twins/player1/longtouch3",
+            "/siamese_twins/player1/longtouch4",
+            "/siamese_twins/player1/longtouch5"
+        ]
     }
 
     function publishInitialValues() {
@@ -1283,11 +1276,9 @@ Page {
     }
 
     Component.onCompleted: {
-        initializeRosNodes()
-    }
+        recorder = rosRecorder
+        publisher = rosPublisher
 
-    Component.onDestruction: {
-        rosPublisher.stopNode()
-        rosRecorder.stopNode()
+        initializeRosNodes()
     }
 }
